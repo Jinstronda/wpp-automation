@@ -402,23 +402,47 @@ async function createContactAndMessage(name: string, phone: string, messageText:
   await page.keyboard.press('Escape').catch(() => undefined);
   await page.waitForTimeout(300);
 
-  // 5) After saving, prefer direct navigation to chat (header visible)
+  // 5) After saving contact, always go back to search and find the contact by name
+  console.log(`Contact saved. Now searching for "${name}" to start conversation...`);
+
+  // Wait for chat list to be visible
   await page.waitForSelector('div[aria-label="Chat list"]', { timeout: 20000 }).catch(() => undefined);
-  const headerNameAfter = page.locator(`header span[title="${name}"]`).first();
-  const headerVisible = await headerNameAfter.count().then(c => c > 0).catch(() => false);
-  if (!headerVisible) {
-    // Fallback to searching by name only if header not visible
-    const searchField = page.locator('[data-testid="chat-list-search"], input[placeholder*="Search" i]');
+
+  // Always search for the contact by name (more reliable than trying to detect if already in chat)
+  const searchSelectors = [
+    '[data-testid="chat-list-search"]',
+    'input[placeholder*="Search" i]',
+    'div[contenteditable="true"][data-tab="3"]',
+    'div[role="textbox"][data-tab="3"]'
+  ];
+
+  let searchFound = false;
+  for (const selector of searchSelectors) {
+    const searchField = page.locator(selector);
     if (await searchField.count()) {
       try {
+        console.log(`Using search selector: ${selector}`);
         await searchField.first().click();
         await searchField.first().fill('');
-        await page.keyboard.type(name, { delay: 10 });
+        await page.waitForTimeout(300);
+        await searchField.first().type(name, { delay: 15 });
+        await page.waitForTimeout(500);
+
+        // Look for the contact in search results
         const chatTitle = page.locator(`span[title="${name}"]`);
         await chatTitle.first().waitFor({ timeout: 10000 });
         await chatTitle.first().click();
-      } catch {}
+        searchFound = true;
+        console.log(`Found and clicked on contact: ${name}`);
+        break;
+      } catch (e) {
+        console.log(`Search attempt failed with ${selector}: ${e}`);
+      }
     }
+  }
+
+  if (!searchFound) {
+    throw new Error(`Could not find search field or contact "${name}" in search results`);
   }
 
   // Now wait for chat composer and send message
