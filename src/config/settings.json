@@ -1,0 +1,8 @@
+{
+  "delayMs": {
+    "min": 1200,
+    "max": 3200
+  },
+  "retries": 2,
+  "model": "openai:gpt-4o-mini"
+}
