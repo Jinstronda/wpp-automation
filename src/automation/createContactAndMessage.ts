@@ -1,9 +1,11 @@
 import { chromium, BrowserContext, Page, Locator } from 'playwright';
 import path from 'path';
+import { markContactProcessed, isContactProcessed, normalizePhoneNumber } from '../utils/fileUtils.js';
 
-function normalizePhoneToDigits(phone: string): string {
-  return phone.replace(/\D/g, '');
-}
+// Remove this duplicate function since we're importing normalizePhoneNumber from fileUtils
+// function normalizePhoneToDigits(phone: string): string {
+//   return phone.replace(/\D/g, '');
+// }
 
 async function clickAny(page: Page, selectors: string[]): Promise<boolean> {
   for (const selector of selectors) {
@@ -106,6 +108,20 @@ async function ensureInputValue(root: Locator, page: Page, selector: string, val
 }
 
 async function createContactAndMessage(name: string, phone: string, messageText: string): Promise<void> {
+  const phoneDigits = normalizePhoneNumber(phone);
+
+  // Check if contact was already processed
+  const existingRecord = isContactProcessed(phoneDigits);
+  if (existingRecord) {
+    if (existingRecord.status === 'processed') {
+      console.log(`Contact ${name} (${phoneDigits}) already processed successfully. Skipping.`);
+      return;
+    } else if (existingRecord.status === 'not_on_whatsapp') {
+      throw new Error(`Contact ${name} (${phoneDigits}) is not on WhatsApp. Skipping.`);
+    }
+    // If status was 'failed', we'll retry
+  }
+
   const userDataDir = path.join(process.cwd(), 'state', 'chromium-profile');
   const context: BrowserContext = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
@@ -186,7 +202,7 @@ async function createContactAndMessage(name: string, phone: string, messageText:
   }
 
   // 3) Fill contact form (name + phone) with multiple selector fallbacks
-  const phoneDigits = normalizePhoneToDigits(phone);
+  // Using phoneDigits variable declared at the top of the function
 
   // Fill name field with comprehensive approach
   let nameFilled = false;
@@ -375,6 +391,14 @@ async function createContactAndMessage(name: string, phone: string, messageText:
   // Wait a moment for the UI to update and save button to appear
   await page.waitForTimeout(500);
 
+  // Check for "not on WhatsApp" message before saving
+  const notOnWhatsAppElements = await page.locator('text*="This phone number is not on WhatsApp"').count();
+  if (notOnWhatsAppElements > 0) {
+    console.log(`Phone number ${phoneDigits} is not on WhatsApp`);
+    markContactProcessed(name, phoneDigits, 'not_on_whatsapp', 'This phone number is not on WhatsApp');
+    throw new Error(`Phone number ${phoneDigits} is not on WhatsApp. Contact marked as invalid.`);
+  }
+
   // 4) Save contact (click the green Save button) inside dialog
   const saved = await clickAnyWithinRoot(dialogRoot, [
     'div[role="button"][aria-label="Save contact"]',
@@ -408,7 +432,7 @@ async function createContactAndMessage(name: string, phone: string, messageText:
   // Wait for chat list to be visible
   await page.waitForSelector('div[aria-label="Chat list"]', { timeout: 20000 }).catch(() => undefined);
 
-  // Always search for the contact by name (more reliable than trying to detect if already in chat)
+  // Search for the contact by name - optimized to avoid duplicate clicks
   const searchSelectors = [
     '[data-testid="chat-list-search"]',
     'input[placeholder*="Search" i]',
@@ -416,33 +440,42 @@ async function createContactAndMessage(name: string, phone: string, messageText:
     'div[role="textbox"][data-tab="3"]'
   ];
 
-  let searchFound = false;
-  for (const selector of searchSelectors) {
-    const searchField = page.locator(selector);
-    if (await searchField.count()) {
-      try {
-        console.log(`Using search selector: ${selector}`);
-        await searchField.first().click();
-        await searchField.first().fill('');
-        await page.waitForTimeout(300);
-        await searchField.first().type(name, { delay: 15 });
-        await page.waitForTimeout(500);
+  let searchField = null;
 
-        // Look for the contact in search results
-        const chatTitle = page.locator(`span[title="${name}"]`);
-        await chatTitle.first().waitFor({ timeout: 10000 });
-        await chatTitle.first().click();
-        searchFound = true;
-        console.log(`Found and clicked on contact: ${name}`);
-        break;
-      } catch (e) {
-        console.log(`Search attempt failed with ${selector}: ${e}`);
-      }
+  // First, find a working search field
+  for (const selector of searchSelectors) {
+    const field = page.locator(selector);
+    if (await field.count()) {
+      searchField = field.first();
+      console.log(`Found search field with selector: ${selector}`);
+      break;
     }
   }
 
-  if (!searchFound) {
-    throw new Error(`Could not find search field or contact "${name}" in search results`);
+  if (!searchField) {
+    throw new Error('Could not find search field');
+  }
+
+  // Clear and type in search field
+  try {
+    await searchField.click();
+    await searchField.fill('');
+    await page.waitForTimeout(300);
+    await searchField.type(name, { delay: 15 });
+    await page.waitForTimeout(800); // Wait a bit longer for search results
+    console.log(`Typed "${name}" in search field`);
+  } catch (e) {
+    throw new Error(`Failed to type in search field: ${e}`);
+  }
+
+  // Now look for the contact in search results
+  try {
+    const chatTitle = page.locator(`span[title="${name}"]`);
+    await chatTitle.first().waitFor({ timeout: 10000 });
+    await chatTitle.first().click();
+    console.log(`Found and clicked on contact: ${name}`);
+  } catch (e) {
+    throw new Error(`Could not find contact "${name}" in search results: ${e}`);
   }
 
   // Now wait for chat composer and send message
@@ -479,7 +512,12 @@ async function createContactAndMessage(name: string, phone: string, messageText:
   }
 
   console.log(`Contact '${name}' created (or opened) and messaged at ${phoneDigits}.`);
+
+  // Mark contact as successfully processed
+  markContactProcessed(name, phoneDigits, 'processed');
 }
+
+export { createContactAndMessage };
 
 async function main(): Promise<void> {
   const name = process.env.CONTACT_NAME || '';
@@ -492,6 +530,9 @@ async function main(): Promise<void> {
   await createContactAndMessage(name, phone, messageText);
 }
 
-main();
+// Only run main if this file is executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
 
 
