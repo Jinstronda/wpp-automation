@@ -30,9 +30,10 @@ const bulkProgressStore = new Map<string, BulkProgress>();
 
 // Middleware
 app.use(cors());
-// Increase payload size limits to handle large CSV files (50MB limit)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Increase payload size limits to handle large CSV files (100MB limit)
+// This accommodates large Google Maps exports with thousands of contacts
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Serve static files (for the frontend)
 app.use(express.static(path.join(process.cwd(), 'web')));
@@ -41,7 +42,7 @@ app.use(express.static(path.join(process.cwd(), 'web')));
 const upload = multer({
   dest: 'uploads/',
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB max file size
+    fileSize: 100 * 1024 * 1024, // 100MB max file size
     files: 1 // Only accept 1 file at a time
   }
 });
@@ -107,6 +108,10 @@ app.post('/api/upload-csv', upload.single('csvFile'), async (req, res) => {
 app.post('/api/start-bulk', async (req, res) => {
   try {
     const { contacts, defaultMessage, messageMode = 'template' } = req.body;
+
+    // Log payload size for debugging
+    const payloadSize = JSON.stringify(req.body).length;
+    console.log(`📊 Received bulk request: ${contacts?.length || 0} contacts, payload size: ${(payloadSize / 1024 / 1024).toFixed(2)}MB`);
 
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return res.status(400).json({ error: 'No contacts provided for bulk processing' });

@@ -366,10 +366,10 @@ class WhatsAppAutomation {
 
     // Validate file size before upload
     validateFileSize(file) {
-        const maxSize = 50 * 1024 * 1024; // 50MB
+        const maxSize = 100 * 1024 * 1024; // 100MB
         if (file.size > maxSize) {
             const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-            throw new Error(`File too large (${sizeMB}MB). Maximum size is 50MB. Please reduce the number of contacts in your CSV.`);
+            throw new Error(`File too large (${sizeMB}MB). Maximum size is 100MB. Please reduce the number of contacts in your CSV.`);
         }
     }
 
