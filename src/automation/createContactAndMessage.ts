@@ -1,6 +1,7 @@
 import { Page, Locator } from 'playwright';
 import { getWhatsAppPage } from './browserManager.js';
-import { markContactProcessed, isContactProcessed, normalizePhoneNumber, extractPhoneWithCountry, CountryInfo, validatePhonePreFlight } from '../utils/fileUtils.js';
+import { markContactProcessed, isContactProcessed, normalizePhoneNumber, extractPhoneWithCountry, CountryInfo, validatePhonePreFlight, processMessageTemplate, Lead } from '../utils/fileUtils.js';
+import { aiMessageGenerator } from '../utils/aiMessageGenerator.js';
 
 // Remove this duplicate function since we're importing normalizePhoneNumber from fileUtils
 // function normalizePhoneToDigits(phone: string): string {
@@ -262,7 +263,13 @@ async function selectCountryFromDropdown(dialogRoot: Locator, page: Page, countr
   }
 }
 
-async function createContactAndMessage(name: string, phone: string, messageText: string): Promise<void> {
+async function createContactAndMessage(
+  name: string,
+  phone: string,
+  messageContent: string,
+  messageMode: string = 'template',
+  contactData?: Lead
+): Promise<void> {
   const phoneDigits = normalizePhoneNumber(phone);
 
   // FAST PRE-FLIGHT VALIDATION - Check blacklist and format BEFORE launching browser
@@ -764,6 +771,36 @@ async function createContactAndMessage(name: string, phone: string, messageText:
     throw new Error(`Could not find contact "${name}" in search results: ${e}`);
   }
 
+  // Generate the final message NOW that contact is successfully created and we're in their chat
+  console.log(`📝 Generating message for ${name}...`);
+  let finalMessage: string;
+
+  if (messageMode === 'ai-prompt' && contactData) {
+    // AI Prompt mode: Use AI to generate message based on custom prompt
+    console.log(`🤖 Using AI prompt mode for ${name}`);
+
+    // Replace variables in the prompt template
+    const promptWithVars = processMessageTemplate(messageContent, contactData);
+
+    // Generate AI message using the custom prompt
+    finalMessage = await aiMessageGenerator.generateOpenerMessage({
+      ...contactData,
+      // Pass the custom prompt as a system instruction context
+      promptVariant: promptWithVars
+    });
+
+    console.log(`✅ AI generated message: "${finalMessage}"`);
+  } else {
+    // Template mode: Simple variable replacement
+    if (contactData) {
+      finalMessage = processMessageTemplate(messageContent, contactData);
+    } else {
+      // Fallback if no contact data provided
+      finalMessage = messageContent;
+    }
+    console.log(`📝 Using template message: "${finalMessage}"`);
+  }
+
   // Now wait for chat composer and send message
   const composerSelectors = [
     'div[contenteditable="true"][data-tab="10"]',
@@ -786,7 +823,7 @@ async function createContactAndMessage(name: string, phone: string, messageText:
           return !!node && node.getAttribute('contenteditable') === 'true' && node === document.activeElement;
         }, selector);
         if (!composerFocused) continue;
-        await target.type(messageText, { delay: 30 });
+        await target.type(finalMessage, { delay: 30 });
         await page.keyboard.press('Enter');
         sent = true;
         break;

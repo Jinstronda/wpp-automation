@@ -99,18 +99,18 @@ app.post('/api/upload-csv', upload.single('csvFile'), async (req, res) => {
 
 app.post('/api/start-bulk', async (req, res) => {
   try {
-    const { contacts, defaultMessage } = req.body;
+    const { contacts, defaultMessage, messageMode = 'template' } = req.body;
 
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return res.status(400).json({ error: 'No contacts provided for bulk processing' });
     }
 
     if (!defaultMessage) {
-      return res.status(400).json({ error: 'Default message is required' });
+      return res.status(400).json({ error: 'Message content is required' });
     }
 
     const sessionId = `bulk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Initialize progress tracking
     const progress: BulkProgress = {
       id: sessionId,
@@ -126,18 +126,18 @@ app.post('/api/start-bulk', async (req, res) => {
 
     bulkProgressStore.set(sessionId, progress);
 
-    // Start bulk processing asynchronously
-    processBulkContacts(sessionId, contacts, defaultMessage);
+    // Start bulk processing asynchronously with mode
+    processBulkContacts(sessionId, contacts, defaultMessage, messageMode);
 
     res.json({
       success: true,
-      message: `Bulk processing started for ${contacts.length} contacts`,
+      message: `Bulk processing started for ${contacts.length} contacts (${messageMode} mode)`,
       sessionId
     });
   } catch (error) {
     console.error('Bulk start error:', error);
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to start bulk processing' 
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to start bulk processing'
     });
   }
 });
@@ -220,14 +220,14 @@ app.post('/api/settings', (req, res) => {
 });
 
 // Bulk processing function
-async function processBulkContacts(sessionId: string, contacts: Lead[], defaultMessage: string) {
+async function processBulkContacts(sessionId: string, contacts: Lead[], messageContent: string, messageMode: string = 'template') {
   const progress = bulkProgressStore.get(sessionId);
   if (!progress) return;
 
   try {
     for (let i = 0; i < contacts.length; i++) {
       const contact = contacts[i];
-      
+
       // Check if processing was stopped
       if (progress.status === 'stopped') {
         progress.logs.push(`⏸️ Processing stopped by user`);
@@ -239,21 +239,26 @@ async function processBulkContacts(sessionId: string, contacts: Lead[], defaultM
       bulkProgressStore.set(sessionId, progress);
 
       try {
-        // Generate personalized message
-        const personalizedMessage = await processMessageTemplate(defaultMessage, contact);
-        
         console.log(`Processing contact ${i + 1}/${contacts.length}: ${contact.name}`);
         progress.logs.push(`🔄 Processing: ${contact.name} (${contact.phone})`);
-        
-        await createContactAndMessage(contact.name, contact.phone, personalizedMessage);
-        
+
+        // Pass message content, mode, and contact data to createContactAndMessage
+        // Message will be generated AFTER contact is successfully created and we're in their chat
+        await createContactAndMessage(
+          contact.name,
+          contact.phone,
+          messageContent,
+          messageMode,
+          contact
+        );
+
         progress.successfulContacts++;
         progress.logs.push(`✅ Success: ${contact.name}`);
-        
+
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error(`Failed to process ${contact.name}:`, errorMessage);
-        
+
         // Categorize the error
         if (errorMessage.includes('not on WhatsApp')) {
           progress.notOnWhatsAppContacts++;

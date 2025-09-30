@@ -122,8 +122,30 @@ export class AIMessageGenerator {
       // Extract city from address if available
       const city = this.extractCityFromAddress(lead.address);
 
-      // Create the user prompt with business-specific data
-      const userPrompt = `Generate the first opener message for this business:
+      let userPrompt: string;
+      let systemPromptToUse = SYSTEM_PROMPT;
+
+      // Check if there's a custom prompt variant (for AI prompt mode)
+      if (lead.promptVariant) {
+        // Custom AI prompt mode - use the user's custom prompt as the instruction
+        userPrompt = `${lead.promptVariant}
+
+Business Details:
+- Name: ${lead.businessName || lead.name}
+- Industry: ${lead.industry || 'general business'}
+${city ? `- City: ${city}` : ''}
+${lead.address ? `- Address: ${lead.address}` : ''}
+${lead.rating ? `- Rating: ${lead.rating}` : ''}
+${lead.website ? `- Website: ${lead.website}` : ''}
+${lead.email ? `- Email: ${lead.email}` : ''}
+
+Generate a personalized message based on the instruction above and these business details. Keep it conversational and concise.`;
+
+        // Use simpler system prompt for custom mode
+        systemPromptToUse = `You are a sales outreach assistant. Generate personalized, conversational messages based on the user's instructions and the business details provided. Keep messages concise (1-3 sentences max). Be direct and natural.`;
+      } else {
+        // Standard mode - use default industry-specific prompt
+        userPrompt = `Generate the first opener message for this business:
 
 Business: ${lead.businessName || lead.name}
 Industry: ${lead.industry || 'general business'}
@@ -133,14 +155,18 @@ ${lead.rating ? `Rating: ${lead.rating}` : ''}
 ${lead.website ? `Website: ${lead.website}` : ''}
 
 You are talking with a ${lead.industry || 'business'} called "${lead.businessName || lead.name}". Generate only the first opener message - one short question tailored to their specific industry type.`;
+      }
+
+      // Get model from environment or default to gpt-5-mini
+      const model = process.env.OPENAI_MODEL || 'gpt-5-mini';
 
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini', // Using GPT-4o-mini as requested
+        model: model,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: systemPromptToUse },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 100,
+        max_tokens: 150,
         temperature: 0.7,
       });
 
@@ -151,7 +177,7 @@ You are talking with a ${lead.industry || 'business'} called "${lead.businessNam
         return this.generateFallbackOpener(lead);
       }
 
-      console.log(`Generated AI opener for ${lead.businessName}: "${generatedMessage}"`);
+      console.log(`Generated AI message for ${lead.businessName}: "${generatedMessage}"`);
       return generatedMessage;
 
     } catch (error) {

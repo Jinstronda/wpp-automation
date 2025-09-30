@@ -13,10 +13,12 @@
 - ✅ **10x faster processing** - Validates in milliseconds instead of minutes per contact
 
 ### **AI-Powered Messaging**
-- 🤖 **Industry-specific openers** - Tailored first messages based on business type
+- 🤖 **Two Message Modes** - Choose between Template or AI Prompt generation
+- 📝 **Template Mode** - Simple variable replacement for consistent messaging
+- 🧠 **AI Prompt Mode** - Custom instructions for GPT-5-mini to generate unique messages
 - 🎯 **Conversational approach** - Starts as potential customer, not salesperson
 - 🏙️ **Market context integration** - Includes city/location when available
-- 📊 **OpenAI GPT-4o-mini** - Smart message generation with fallback templates
+- 📊 **OpenAI GPT-5-mini** - Latest AI model for intelligent message generation
 
 ### **Enterprise-Grade Reliability**
 - 🔄 **Persistent browser session** - Single WhatsApp login for all contacts
@@ -87,17 +89,35 @@ John's Realty,3015551234,John's Real Estate Agency,"100 Main St, Miami",Real Est
 Miami Properties,3055559999,Miami Property Group,"200 Ocean Dr, Miami",Real Estate
 ```
 
-### **3. Processing Modes**
+### **3. Choose Your Message Mode**
 
-**🤖 AI Mode (Recommended)**
-- Leave "Message Template" field **empty**
-- AI generates industry-specific openers using João Panizzutti's methodology
-- Example: *"Thinking of investing in rental property in Manhattan — can we schedule a consultation?"*
+The UI offers two powerful modes for message generation:
 
-**📝 Template Mode**
-- Enter a custom message template
-- Use variables: `{{business}}`, `{{address}}`, `{{industry}}`, `{{city}}`
-- Example: *"Hi {{business}}, I found your {{industry}} business at {{address}}"*
+**📝 Template Mode** (Simple & Fast)
+- Click the "📝 Template Mode" button
+- Enter your message template with variables
+- Variables are replaced with actual contact data
+- Example: *"Hi {{business}}, I found your {{industry}} business in {{city}}. Would love to discuss how we can work together!"*
+- **Best for:** Consistent, branded messaging across all contacts
+
+**🤖 AI Prompt Mode** (Smart & Personalized)
+- Click the "🤖 AI Prompt Mode" button
+- Write custom instructions for GPT-5-mini
+- AI generates unique messages for each contact based on your prompt
+- Example prompt: *"You are reaching out to {{business}}, a {{industry}} business in {{city}}. Generate a conversational opener asking about their services and expressing genuine interest in their work."*
+- **Best for:** Highly personalized, contextual messaging
+
+**Available Variables for Both Modes:**
+- `{{business}}` or `{{name}}` - Business/contact name
+- `{{title}}` - Business title
+- `{{city}}` - City from address
+- `{{address}}` - Full address
+- `{{industry}}` - Business type
+- `{{email}}` - Email address
+- `{{website}}` - Website URL
+- `{{rating}}` - Google rating
+- `{{reviews}}` - Number of reviews
+- `{{additionalPhones}}` - Extra phone numbers
 
 ### **4. Monitor Progress**
 
@@ -165,26 +185,53 @@ web/
 
 ## 🧠 AI Message Generation
 
-The system generates industry-specific opening messages using a consultative selling approach:
+The system offers **two powerful modes** for message generation:
 
-### **Opening Message Strategy**
-- **Goal:** Start conversation as a potential customer
-- **Approach:** Lead with buyer intent, not sales pitch
-- **Tone:** Conversational, direct, single question only
+### **📝 Template Mode**
+Simple variable replacement for consistent messaging:
+- Variables like `{{business}}`, `{{city}}`, `{{industry}}` are replaced with actual data
+- Fast and predictable
+- Perfect for branded, consistent outreach
+- No API calls required
 
-### **Industry-Specific Examples**
+**Example:**
+```
+Template: "Hi {{business}}! Found your {{industry}} business in {{city}}. Let's connect!"
+Result: "Hi Joe's Pizza! Found your Restaurant business in New York. Let's connect!"
+```
+
+### **🤖 AI Prompt Mode (Powered by GPT-5-mini)**
+Custom AI instructions for personalized message generation:
+- Write your own prompt with instructions for the AI
+- Variables work in your prompt too
+- GPT-5-mini generates unique messages for each contact
+- Highly contextual and personalized
+
+**Example:**
+```
+Prompt: "You are reaching out to {{business}}, a {{industry}} in {{city}}.
+         Generate a friendly opener asking about their services."
+
+Result: "Hi there! I came across your restaurant in New York and I'm really
+         impressed by your menu. Are you currently taking reservations for this week?"
+```
+
+### **GPT-5-mini Model**
+- **Latest OpenAI model** (2025 release)
+- **272,000 token input limit** for extensive context
+- **128,000 token output limit** for detailed responses
+- **Lower latency** than full GPT-5
+- **Cost-effective** for high-volume messaging
+- **Fallback system** uses industry-specific templates if API unavailable
+
+### **Industry-Specific Fallback Examples**
+When AI is unavailable, the system uses these proven templates:
 - **Gym:** "Hey do you still offer trial passes"
 - **Dentist:** "Hi are you taking new patients this month"
 - **Restaurant:** "Hi are you taking reservations this week"
 - **Real Estate:** "Looking to relocate to [City] — are you taking new buyer clients?"
 - **Auto Repair:** "Hi do you handle urgent repairs today"
 - **Marketing Agency:** "Hi do you take on new clients this month"
-
-### **How It Works**
-1. Analyzes contact's industry and location
-2. Uses GPT-4o-mini to generate contextual opener
-3. Falls back to industry templates if AI unavailable
-4. Keeps messages short (1-2 sentences max)
 
 ---
 
@@ -241,15 +288,18 @@ Location: `state/contact-tracking.json`
 
 ### **Environment Variables**
 
-Create a `.env` file:
+Create a `.env` file in the root directory:
 
 ```env
-# OpenAI API Key (for AI message generation)
-OPENAI_API_KEY=your-api-key-here
+# OpenAI API Key (required for AI message generation)
+OPENAI_API_KEY=your-openai-api-key-here
 
-# Optional: Model selection (default: gpt-4o-mini)
-OPENAI_MODEL=gpt-4o-mini
+# OpenAI Model (default: gpt-5-mini)
+# Options: gpt-5-mini, gpt-5, gpt-5-nano
+OPENAI_MODEL=gpt-5-mini
 ```
+
+**Note:** The `.env` file is already in `.gitignore` to protect your API key from being committed to version control.
 
 ### **Supported Countries**
 
@@ -375,7 +425,7 @@ This project is private and proprietary.
 - TypeScript
 - Express.js
 - Playwright (Chromium with persistent context)
-- OpenAI GPT-4o-mini
+- OpenAI GPT-5-mini (2025)
 
 ---
 

@@ -362,7 +362,54 @@
             background: var(--gray-900);
             border-color: var(--white);
         }
-        
+
+        /* Mode Selector */
+        .mode-selector {
+            display: flex;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-xs);
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: var(--space-sm) var(--space-md);
+            background: var(--gray-950);
+            border: 1px solid var(--gray-800);
+            border-radius: var(--radius-md);
+            color: var(--gray-400);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--duration-fast) var(--ease);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-xs);
+        }
+
+        .mode-btn:hover {
+            background: var(--gray-900);
+            border-color: var(--gray-700);
+            color: var(--gray-200);
+        }
+
+        .mode-btn.active {
+            background: var(--white);
+            color: var(--black);
+            border-color: var(--white);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        .mode-btn.active:hover {
+            background: var(--white);
+            color: var(--black);
+        }
+
+        /* Hidden utility */
+        .hidden {
+            display: none !important;
+        }
+
         /* Progress Section */
         .progress-section {
             display: none;
@@ -620,9 +667,33 @@
                     </div>
 
                     <div class="form-group">
+                        <label class="form-label" for="message-mode">Message Mode</label>
+                        <div class="mode-selector">
+                            <button type="button" class="mode-btn active" data-mode="template" id="mode-template-btn">
+                                📝 Template Mode
+                            </button>
+                            <button type="button" class="mode-btn" data-mode="ai-prompt" id="mode-ai-prompt-btn">
+                                🤖 AI Prompt Mode
+                            </button>
+                        </div>
+                        <div class="form-help" style="margin-top: var(--space-xs);">Choose how to generate messages for each contact</div>
+                    </div>
+
+                    <!-- Template Mode -->
+                    <div class="form-group" id="template-mode-section">
                         <label class="form-label" for="default-message">Message Template</label>
-                        <textarea id="default-message" name="defaultMessage" class="form-textarea" placeholder="Hi! I found your business {{business}} in {{city}}. I'd love to discuss how we can work together..." required></textarea>
-                        <div class="form-help">Available: {{business}}, {{name}}, {{city}}, {{address}}, {{industry}}, {{email}}, {{website}}, {{rating}}, {{reviews}}</div>
+                        <textarea id="default-message" name="defaultMessage" class="form-textarea" placeholder="Hi! I found your business {{business}} in {{city}}. I'd love to discuss how we can work together..."></textarea>
+                        <div class="form-help">Available variables: {{business}}, {{name}}, {{city}}, {{address}}, {{industry}}, {{email}}, {{website}}, {{rating}}, {{reviews}}</div>
+                    </div>
+
+                    <!-- AI Prompt Mode -->
+                    <div class="form-group hidden" id="ai-prompt-mode-section">
+                        <label class="form-label" for="ai-prompt">AI Prompt</label>
+                        <textarea id="ai-prompt" name="aiPrompt" class="form-textarea" placeholder="You are reaching out to {{business}}, a {{industry}} business in {{city}}. Generate a conversational opener asking about their services..."></textarea>
+                        <div class="form-help">
+                            <strong>AI will generate unique messages for each contact using your prompt.</strong><br>
+                            Available variables: {{business}}, {{name}}, {{title}}, {{city}}, {{address}}, {{industry}}, {{email}}, {{website}}, {{rating}}, {{reviews}}, {{additionalPhones}}
+                        </div>
         </div>
 
                     <button type="submit" class="btn" id="upload-csv-btn">

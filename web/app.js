@@ -14,31 +14,42 @@ class WhatsAppAutomation {
         return {
             // Status elements
             statusText: document.getElementById('status-text'),
-            
+
             // Forms
             bulkForm: document.getElementById('csv-upload-form'),
-            
+
             // Buttons
             uploadCsvBtn: document.getElementById('upload-csv-btn'),
             stopBulkBtn: document.getElementById('stop-bulk-btn'),
-            
+            modeTemplateBtn: document.getElementById('mode-template-btn'),
+            modeAiPromptBtn: document.getElementById('mode-ai-prompt-btn'),
+
+            // Mode sections
+            templateModeSection: document.getElementById('template-mode-section'),
+            aiPromptModeSection: document.getElementById('ai-prompt-mode-section'),
+
+            // Input fields
+            defaultMessage: document.getElementById('default-message'),
+            aiPrompt: document.getElementById('ai-prompt'),
+
             // Progress elements
             progressSection: document.getElementById('progress-section'),
             progressFill: document.getElementById('progress-fill'),
             progressText: document.getElementById('progress-text'),
-            
+
             // Status messages
             bulkStatus: document.getElementById('bulk-status'),
-            
+
             // Logs
             logOutput: document.getElementById('log-output'),
-            
+
             // Time
             currentTime: document.getElementById('current-time')
         };
     }
 
     init() {
+        this.currentMode = 'template'; // Default mode
         this.setupEventListeners();
         this.updateTime();
         this.checkServerStatus();
@@ -48,12 +59,36 @@ class WhatsAppAutomation {
     setupEventListeners() {
         // Form submissions
         this.elements.bulkForm?.addEventListener('submit', (e) => this.handleBulkUpload(e));
-        
+
         // Control buttons
         this.elements.stopBulkBtn?.addEventListener('click', () => this.stopBulkProcessing());
-        
+
+        // Mode switching buttons
+        this.elements.modeTemplateBtn?.addEventListener('click', () => this.switchMode('template'));
+        this.elements.modeAiPromptBtn?.addEventListener('click', () => this.switchMode('ai-prompt'));
+
         // Update time every minute
         setInterval(() => this.updateTime(), 60000);
+    }
+
+    // Switch between template and AI prompt modes
+    switchMode(mode) {
+        this.currentMode = mode;
+
+        // Update button states
+        if (mode === 'template') {
+            this.elements.modeTemplateBtn?.classList.add('active');
+            this.elements.modeAiPromptBtn?.classList.remove('active');
+            this.elements.templateModeSection?.classList.remove('hidden');
+            this.elements.aiPromptModeSection?.classList.add('hidden');
+        } else {
+            this.elements.modeTemplateBtn?.classList.remove('active');
+            this.elements.modeAiPromptBtn?.classList.add('active');
+            this.elements.templateModeSection?.classList.add('hidden');
+            this.elements.aiPromptModeSection?.classList.remove('hidden');
+        }
+
+        this.log(`Switched to ${mode === 'template' ? 'Template' : 'AI Prompt'} mode`, 'info');
     }
 
     // Server Status
@@ -76,7 +111,7 @@ class WhatsAppAutomation {
     // Bulk Upload Handler
     async handleBulkUpload(event) {
         event.preventDefault();
-        
+
         if (this.isProcessing) {
             this.showStatus('bulk', 'Already processing a request', 'info');
             return;
@@ -84,13 +119,27 @@ class WhatsAppAutomation {
 
         this.isProcessing = true;
         const originalText = this.elements.uploadCsvBtn.textContent;
-        
+
         try {
             this.elements.uploadCsvBtn.textContent = 'Uploading...';
             this.elements.uploadCsvBtn.disabled = true;
             this.elements.uploadCsvBtn.classList.add('loading');
 
             const formData = new FormData(event.target);
+
+            // Get the message based on current mode
+            let messageContent;
+            if (this.currentMode === 'template') {
+                messageContent = formData.get('defaultMessage') || '';
+                if (!messageContent.trim()) {
+                    throw new Error('Please enter a message template');
+                }
+            } else {
+                messageContent = this.elements.aiPrompt?.value || '';
+                if (!messageContent.trim()) {
+                    throw new Error('Please enter an AI prompt');
+                }
+            }
 
             this.log('Uploading CSV file...', 'info');
             this.updateStatus('Uploading...');
@@ -106,8 +155,8 @@ class WhatsAppAutomation {
                 this.showStatus('bulk', `CSV uploaded: ${result.data.contacts.length} contacts found`, 'success');
                 this.log(`✅ CSV uploaded: ${result.data.contacts.length} contacts`, 'success');
 
-                // Start bulk processing
-                await this.startBulkProcessing(result.data.contacts, formData.get('defaultMessage'));
+                // Start bulk processing with mode and message
+                await this.startBulkProcessing(result.data.contacts, messageContent, this.currentMode);
             } else {
                 throw new Error(result.error || 'Upload failed');
             }
@@ -124,9 +173,9 @@ class WhatsAppAutomation {
     }
 
     // Start Bulk Processing
-    async startBulkProcessing(contacts, defaultMessage) {
+    async startBulkProcessing(contacts, messageContent, mode) {
         try {
-            this.log(`Starting bulk processing for ${contacts.length} contacts...`, 'info');
+            this.log(`Starting bulk processing for ${contacts.length} contacts in ${mode} mode...`, 'info');
             this.updateStatus('Processing...');
 
             const response = await fetch('/api/start-bulk', {
@@ -134,7 +183,8 @@ class WhatsAppAutomation {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contacts: contacts,
-                    defaultMessage: defaultMessage
+                    defaultMessage: messageContent,
+                    messageMode: mode // 'template' or 'ai-prompt'
                 })
             });
 
@@ -144,7 +194,7 @@ class WhatsAppAutomation {
                 this.bulkSessionId = result.sessionId;
                 this.showProgressSection(contacts.length);
                 this.startProgressMonitoring();
-                this.log('✅ Bulk processing started', 'success');
+                this.log(`✅ Bulk processing started (${mode === 'template' ? 'Template' : 'AI Prompt'} mode)`, 'success');
             } else {
                 throw new Error(result.error || 'Failed to start bulk processing');
             }
