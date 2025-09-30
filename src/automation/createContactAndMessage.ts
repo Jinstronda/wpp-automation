@@ -1,6 +1,6 @@
-import { chromium, BrowserContext, Page, Locator } from 'playwright';
-import path from 'path';
-import { markContactProcessed, isContactProcessed, normalizePhoneNumber } from '../utils/fileUtils.js';
+import { Page, Locator } from 'playwright';
+import { getWhatsAppPage } from './browserManager.js';
+import { markContactProcessed, isContactProcessed, normalizePhoneNumber, extractPhoneWithCountry, CountryInfo, validatePhonePreFlight } from '../utils/fileUtils.js';
 
 // Remove this duplicate function since we're importing normalizePhoneNumber from fileUtils
 // function normalizePhoneToDigits(phone: string): string {
@@ -12,7 +12,7 @@ async function clickAny(page: Page, selectors: string[]): Promise<boolean> {
     const el = page.locator(selector);
     if (await el.count()) {
       try {
-        await el.first().click({ timeout: 5000 });
+        await el.first().click({ timeout: 1000 }); // Reduced from 5000ms to 1000ms
         return true;
       } catch {}
     }
@@ -25,7 +25,7 @@ async function clickAnyWithinRoot(root: Locator, selectors: string[]): Promise<b
     const el = root.locator(selector);
     if (await el.count()) {
       try {
-        await el.first().click({ timeout: 5000 });
+        await el.first().click({ timeout: 1000 }); // Reduced from 5000ms to 1000ms
         return true;
       } catch {}
     }
@@ -33,26 +33,6 @@ async function clickAnyWithinRoot(root: Locator, selectors: string[]): Promise<b
   return false;
 }
 
-async function typeInto(page: Page, selectors: string[], value: string): Promise<boolean> {
-  for (const selector of selectors) {
-    const el: Locator = page.locator(selector);
-    if (await el.count()) {
-      try {
-        const target = el.first();
-        await target.click();
-        await target.fill('');
-        const isFocused = await page.evaluate((sel) => {
-          const node = document.querySelector(sel) as HTMLElement | null;
-          return !!node && node === document.activeElement;
-        }, selector);
-        if (!isFocused) continue;
-        await target.type(value, { delay: 20 });
-        return true;
-      } catch {}
-    }
-  }
-  return false;
-}
 
 async function typeIntoWithinRoot(root: Locator, page: Page, selectors: string[], value: string): Promise<boolean> {
   for (const selector of selectors) {
@@ -107,37 +87,226 @@ async function ensureInputValue(root: Locator, page: Page, selector: string, val
   return false;
 }
 
+async function selectCountryFromDropdown(dialogRoot: Locator, page: Page, country: CountryInfo): Promise<boolean> {
+  console.log(`Attempting to select country: ${country.name} (${country.code})`);
+
+  try {
+    // Find and click the country dropdown button - Simplified to essential working selectors
+    const countryDropdownSelectors = [
+      'button[aria-label*="Country:"]', // EXACT working selector from testing
+      'div[role="button"][aria-label*="Country:"]', // Generic fallback
+      'div.x1y1aw1k.xs9asl8' // User provided selector as final fallback
+    ];
+
+    let dropdownClicked = false;
+    for (const selector of countryDropdownSelectors) {
+      const dropdown = dialogRoot.locator(selector);
+      if (await dropdown.count()) {
+        try {
+          await dropdown.first().click({ timeout: 3000 });
+          console.log(`✅ Clicked country dropdown with selector: ${selector}`);
+          dropdownClicked = true;
+          break;
+        } catch (e) {
+          console.log(`Failed to click dropdown with selector ${selector}: ${e}`);
+        }
+      }
+    }
+
+    if (!dropdownClicked) {
+      console.log('❌ Could not find country dropdown button');
+      return false;
+    }
+
+    // Wait for the dropdown/search interface to appear - based on testing
+    await page.waitForTimeout(1000);
+
+    // Look for the search textbox within the dropdown popup - EXACT working approach from Playwright testing
+    let searchTextbox = null;
+
+    // First try the exact working Playwright approach - scope to dropdown container
+    try {
+      const dropdownContainer = page.locator('#wa-popovers-bucket');
+      if (await dropdownContainer.count()) {
+        searchTextbox = dropdownContainer.getByRole('textbox');
+        if (await searchTextbox.count()) {
+          console.log(`✅ Found search textbox in dropdown container (Playwright method)`);
+        } else {
+          searchTextbox = null;
+        }
+      }
+    } catch (e) {
+      console.log(`Dropdown container method failed: ${e}`);
+      searchTextbox = null;
+    }
+
+    // Fallback: try other selectors but still scope to avoid main search textbox
+    if (!searchTextbox) {
+      const searchTextboxSelectors = [
+        'textbox', // Last resort - may find wrong textbox
+        'input[type="text"]',
+        'input[placeholder*="Search" i]',
+        'input[aria-label*="Search" i]',
+        'div[contenteditable="true"]'
+      ];
+
+      for (const selector of searchTextboxSelectors) {
+        const input = page.locator(selector);
+        if (await input.count()) {
+          searchTextbox = input.first();
+          console.log(`✅ Found search textbox with fallback selector: ${selector}`);
+          break;
+        }
+      }
+    }
+
+    if (!searchTextbox) {
+      console.log('❌ Could not find search textbox in country dropdown');
+      await page.keyboard.press('Escape');
+      return false;
+    }
+
+    // Clear the search field and type the country name - tested approach
+    await searchTextbox.click();
+    await searchTextbox.fill('');
+    await page.waitForTimeout(300);
+
+    // Type the country name - tested working approach
+    console.log(`Typing "${country.name}" in search textbox...`);
+    await searchTextbox.type(country.name, { delay: 50 });
+
+    // Wait for search results to filter - crucial for accuracy
+    await page.waitForTimeout(800);
+
+    // Look for the specific country button in the filtered results - CONFIRMED working selectors from live testing
+    const countryButtonSelectors = [
+      `button:has-text("🇬🇧 ${country.name} ${country.prefix}")`, // EXACT format confirmed by live testing
+      `button:has-text("${country.name} ${country.prefix}")`, // Without flag emoji
+      `button:has-text("${country.name}")`, // Simplified - most reliable
+      `listitem button:has-text("${country.name}")`, // Within listitem structure
+      `button[role="button"]:has-text("${country.name}")`, // Fallback
+      `[role="option"] button:has-text("${country.name}")`, // Fallback
+      `[role="listitem"] button:has-text("${country.name}")`, // Fallback
+      `button:has-text("${country.prefix}")` // Prefix only fallback
+    ];
+
+    let countrySelected = false;
+    for (const selector of countryButtonSelectors) {
+      const countryButton = page.locator(selector);
+      const buttonCount = await countryButton.count();
+
+      if (buttonCount > 0) {
+        try {
+          console.log(`✅ Found country button with selector: ${selector}`);
+          await countryButton.first().click({ timeout: 3000 });
+          console.log(`✅ Successfully clicked country button for ${country.name}`);
+          countrySelected = true;
+          break;
+        } catch (e) {
+          console.log(`Failed to click country button with selector ${selector}: ${e}`);
+        }
+      }
+    }
+
+    // If specific button clicking failed, try a more general approach
+    if (!countrySelected) {
+      console.log(`Trying to find any button containing "${country.name}"...`);
+      try {
+        const anyCountryButton = page.locator(`button:has-text("${country.name}")`);
+        const count = await anyCountryButton.count();
+
+        if (count > 0) {
+          await anyCountryButton.first().click();
+          console.log(`✅ Successfully clicked general country button for ${country.name}`);
+          countrySelected = true;
+        }
+      } catch (e) {
+        console.log(`General button click also failed: ${e}`);
+      }
+    }
+
+    // If clicking still fails, try Enter key as last resort
+    if (!countrySelected) {
+      console.log(`Trying Enter key to select first filtered result...`);
+      try {
+        await searchTextbox.press('Enter');
+        await page.waitForTimeout(500);
+
+        // Check if dropdown closed (indicating selection worked)
+        const dropdownStillOpen = await page.locator('textbox, input[type="text"]').count();
+        if (dropdownStillOpen === 0) {
+          console.log(`✅ Country selected via Enter key`);
+          countrySelected = true;
+        }
+      } catch (e) {
+        console.log(`Enter key approach failed: ${e}`);
+      }
+    }
+
+    if (!countrySelected) {
+      console.log(`❌ Could not select country ${country.name} with any approach`);
+      await page.keyboard.press('Escape');
+      return false;
+    }
+
+    // Wait for dropdown to close and form to update
+    await page.waitForTimeout(800);
+    console.log(`✅ Successfully selected country: ${country.name}`);
+    return true;
+
+  } catch (error) {
+    console.error(`❌ Error selecting country ${country.name}:`, error);
+    // Try to close any open dropdown
+    await page.keyboard.press('Escape').catch(() => {});
+    return false;
+  }
+}
+
 async function createContactAndMessage(name: string, phone: string, messageText: string): Promise<void> {
   const phoneDigits = normalizePhoneNumber(phone);
 
-  // Check if contact was already processed
-  const existingRecord = isContactProcessed(phoneDigits);
-  if (existingRecord) {
-    if (existingRecord.status === 'processed') {
-      console.log(`Contact ${name} (${phoneDigits}) already processed successfully. Skipping.`);
+  // FAST PRE-FLIGHT VALIDATION - Check blacklist and format BEFORE launching browser
+  console.log(`⚡ Pre-flight validation for ${name} (${phoneDigits})`);
+  const validation = validatePhonePreFlight(phone, name);
+
+  if (!validation.isValid) {
+    const skipIcon = validation.skipReason === 'blacklist' ? '🚫' :
+                    validation.skipReason === 'test_number' ? '🧪' :
+                    validation.skipReason === 'invalid_format' ? '📝' : '❌';
+
+    console.log(`${skipIcon} FAST SKIP: ${validation.reason}`);
+
+    // For blacklist hits, just skip (already in database)
+    if (validation.skipReason === 'blacklist') {
       return;
-    } else if (existingRecord.status === 'not_on_whatsapp') {
-      throw new Error(`Contact ${name} (${phoneDigits}) is not on WhatsApp. Skipping.`);
     }
-    // If status was 'failed', we'll retry
+
+    // For new invalid formats, mark them in blacklist for future speed
+    if (validation.skipReason === 'invalid_format' || validation.skipReason === 'test_number') {
+      markContactProcessed(name, phoneDigits, 'invalid_phone', validation.reason);
+    }
+
+    throw new Error(validation.reason);
   }
 
-  const userDataDir = path.join(process.cwd(), 'state', 'chromium-profile');
-  const context: BrowserContext = await chromium.launchPersistentContext(userDataDir, {
-    headless: false,
-    viewport: { width: 1600, height: 900 }
-  });
+  console.log(`✅ Pre-flight passed for ${name} (${phoneDigits}) - launching browser`);
 
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto('https://web.whatsapp.com', { waitUntil: 'load' });
-  await page.waitForSelector('div[aria-label="Chat list"]', { timeout: 30000 }).catch(() => undefined);
+  // Extract country information from the original phone number (before normalization)
+  const { country, localNumber } = extractPhoneWithCountry(phone);
+
+  // Use shared browser manager to get WhatsApp page
+  const page = await getWhatsAppPage();
+
+  try {
 
   // 1) Click New Chat (plus icon) using resilient selectors
   const newChatSelectors = [
+    'button[aria-label="New chat"]',
+    '[aria-label="New chat"]',
+    'button[role="button"][aria-label="New chat"]',
     '[data-testid="chat-new"]',
     '[data-testid="menu-bar-new-chat"]',
     'div[role="button"][title="New chat"]',
-    'button[aria-label="New chat"]',
     'span[data-icon="new-chat"]',
     'span[data-icon="new-chat-outline"]',
     'button svg[aria-label="New chat"]'
@@ -148,7 +317,7 @@ async function createContactAndMessage(name: string, phone: string, messageText:
     await page.keyboard.press('Control+KeyN').catch(() => undefined);
     // Wait for panel to appear (look for New contact option or panel container)
     const panel = page.locator('div[role="dialog"], [data-testid="chatlist"]');
-    await panel.first().waitFor({ timeout: 5000 }).catch(() => undefined);
+    await panel.first().waitFor({ timeout: 2000 }).catch(() => undefined);
   }
 
   // 2) Click "New contact"
@@ -162,7 +331,7 @@ async function createContactAndMessage(name: string, phone: string, messageText:
   ]);
   if (!newContactClicked) {
     try {
-      await page.getByText('New contact', { exact: true }).first().click({ timeout: 5000 });
+      await page.getByText('New contact', { exact: true }).first().click({ timeout: 1000 });
       newContactClicked = true;
     } catch {}
   }
@@ -175,7 +344,7 @@ async function createContactAndMessage(name: string, phone: string, messageText:
   }
 
   // Wait for New Contact dialog/panel to be visible with better detection
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(500);
 
   // Try multiple dialog selectors
   const dialogSelectors = [
@@ -192,7 +361,7 @@ async function createContactAndMessage(name: string, phone: string, messageText:
     const dialog = page.locator(selector);
     if (await dialog.count() > 0) {
       dialogRoot = dialog.first();
-      await dialogRoot.waitFor({ timeout: 5000 }).catch(() => undefined);
+      await dialogRoot.waitFor({ timeout: 2000 }).catch(() => undefined);
       break;
     }
   }
@@ -378,6 +547,50 @@ async function createContactAndMessage(name: string, phone: string, messageText:
     } catch {}
   }
 
+  // Handle country selection if an international number was detected
+  if (country && country.code !== 'PT') {
+    console.log(`International number detected for ${country.name} (${country.code}). Selecting country from dropdown...`);
+    const countrySelected = await selectCountryFromDropdown(dialogRoot, page, country);
+    if (countrySelected) {
+      console.log(`Successfully selected country: ${country.name}`);
+      // After selecting country, we need to re-fill the phone field with the local number
+      // since the country selection might clear or modify the phone field
+      await page.waitForTimeout(500); // Wait for UI to update after country selection
+
+      const localPhoneSelectors = [
+        'input[aria-label*="phone" i]',
+        'input[placeholder*="phone" i]',
+        'input[type="tel"]',
+        'input[aria-label="Phone number"][type="text"]'
+      ];
+
+      let localPhoneFilled = false;
+      for (const selector of localPhoneSelectors) {
+        const phoneInput = dialogRoot.locator(selector);
+        if (await phoneInput.count()) {
+          try {
+            await phoneInput.first().click();
+            await phoneInput.first().fill('');
+            await phoneInput.first().type(localNumber, { delay: 15 });
+            localPhoneFilled = true;
+            console.log(`Re-filled phone field with local number: ${localNumber}`);
+            break;
+          } catch {}
+        }
+      }
+
+      if (!localPhoneFilled) {
+        console.warn('Could not re-fill phone field with local number after country selection');
+      }
+    } else {
+      console.warn(`Failed to select country ${country.name}. Proceeding with default country.`);
+    }
+  } else if (country && country.code === 'PT') {
+    console.log(`Portuguese number detected. Using default country setting.`);
+  } else {
+    console.log(`No specific country detected for phone ${phone}. Using default country setting.`);
+  }
+
   // Validate that both name and phone were filled before proceeding
   if (!nameFilled) {
     throw new Error('Could not fill contact name field');
@@ -388,14 +601,77 @@ async function createContactAndMessage(name: string, phone: string, messageText:
 
   console.log(`Form filled successfully: Name="${name}", Phone="${phoneDigits}"`);
 
-  // Wait a moment for the UI to update and save button to appear
+  // Wait a moment for the UI to update and check for validation messages
   await page.waitForTimeout(500);
 
-  // Check for "not on WhatsApp" message before saving
-  const notOnWhatsAppElements = await page.locator('text*="This phone number is not on WhatsApp"').count();
+  // Check for various error messages that can appear immediately after filling the phone field
+  console.log('Checking for WhatsApp validation messages...');
+
+  // FIRST: Check for "not on WhatsApp" message immediately after phone entry
+  const notOnWhatsAppSelectors = [
+    ':text("This phone number is not on WhatsApp")',
+    ':text("This phone number is not on WhatsApp.")',
+    ':text("not on WhatsApp")',
+    '[class*="error"]:has-text("not on WhatsApp")',
+    '[role="alert"]:has-text("not on WhatsApp")'
+  ];
+  
+  let notOnWhatsAppDetected = false;
+  for (const selector of notOnWhatsAppSelectors) {
+    const count = await page.locator(selector).count();
+    if (count > 0) {
+      console.log(`Phone number ${phoneDigits} is not on WhatsApp - detected immediately after phone entry with selector: ${selector}`);
+      markContactProcessed(name, phoneDigits, 'not_on_whatsapp', 'This phone number is not on WhatsApp');
+      await page.keyboard.press('Escape').catch(() => undefined);
+      await page.waitForTimeout(500);
+      throw new Error(`Phone number ${phoneDigits} is not on WhatsApp. Contact marked as invalid.`);
+    }
+  }
+
+  // Check for "not a valid phone number" message (exact text from your screenshot)
+  const invalidPhoneSelectors = [
+    'text="This is not a valid phone number."',
+    'text="This is not a valid phone number"',
+    ':text("This is not a valid phone number")',
+    '[class*="error"]:has-text("valid phone number")',
+    '[role="alert"]:has-text("valid phone number")',
+    'span:has-text("This is not a valid phone number")',
+    'div:has-text("This is not a valid phone number")'
+  ];
+
+  let invalidPhoneDetected = false;
+  for (const selector of invalidPhoneSelectors) {
+    try {
+      const elements = await page.locator(selector).count();
+      if (elements > 0) {
+        console.log(`Invalid phone number detected with selector: ${selector}`);
+        invalidPhoneDetected = true;
+        break;
+      }
+    } catch (e) {
+      // Continue checking other selectors
+    }
+  }
+
+  if (invalidPhoneDetected) {
+    console.log(`Phone number ${phoneDigits} is not a valid phone number (WhatsApp validation failed)`);
+    markContactProcessed(name, phoneDigits, 'invalid_phone', 'This is not a valid phone number');
+    // Simply close the dialog and stay in WhatsApp - no navigation needed
+    await page.keyboard.press('Escape').catch(() => undefined);
+    await page.waitForTimeout(500);
+
+    throw new Error(`Phone number ${phoneDigits} is not a valid phone number. Contact marked as invalid.`);
+  }
+
+  // Check for "not on WhatsApp" message
+  const notOnWhatsAppElements = await page.locator(':text("This phone number is not on WhatsApp")').count();
   if (notOnWhatsAppElements > 0) {
     console.log(`Phone number ${phoneDigits} is not on WhatsApp`);
     markContactProcessed(name, phoneDigits, 'not_on_whatsapp', 'This phone number is not on WhatsApp');
+    // Simply close the dialog and stay in WhatsApp - no navigation needed
+    await page.keyboard.press('Escape').catch(() => undefined);
+    await page.waitForTimeout(500);
+
     throw new Error(`Phone number ${phoneDigits} is not on WhatsApp. Contact marked as invalid.`);
   }
 
@@ -426,11 +702,21 @@ async function createContactAndMessage(name: string, phone: string, messageText:
   await page.keyboard.press('Escape').catch(() => undefined);
   await page.waitForTimeout(300);
 
+  // THIRD: Check for "not on WhatsApp" message after save attempt
+  const notOnWhatsAppElements3 = await page.locator(':text("This phone number is not on WhatsApp")').count();
+  if (notOnWhatsAppElements3 > 0) {
+    console.log(`Phone number ${phoneDigits} is not on WhatsApp - detected after save attempt`);
+    markContactProcessed(name, phoneDigits, 'not_on_whatsapp', 'This phone number is not on WhatsApp');
+    await page.keyboard.press('Escape').catch(() => undefined);
+    await page.waitForTimeout(500);
+    throw new Error(`Phone number ${phoneDigits} is not on WhatsApp. Contact marked as invalid.`);
+  }
+
   // 5) After saving contact, always go back to search and find the contact by name
   console.log(`Contact saved. Now searching for "${name}" to start conversation...`);
 
   // Wait for chat list to be visible
-  await page.waitForSelector('div[aria-label="Chat list"]', { timeout: 20000 }).catch(() => undefined);
+  await page.waitForSelector('div[aria-label="Chat list"]', { timeout: 5000 }).catch(() => undefined);
 
   // Search for the contact by name - optimized to avoid duplicate clicks
   const searchSelectors = [
@@ -471,7 +757,7 @@ async function createContactAndMessage(name: string, phone: string, messageText:
   // Now look for the contact in search results
   try {
     const chatTitle = page.locator(`span[title="${name}"]`);
-    await chatTitle.first().waitFor({ timeout: 10000 });
+    await chatTitle.first().waitFor({ timeout: 3000 });
     await chatTitle.first().click();
     console.log(`Found and clicked on contact: ${name}`);
   } catch (e) {
@@ -493,7 +779,7 @@ async function createContactAndMessage(name: string, phone: string, messageText:
     if (await c.count()) {
       try {
         const target = c.first();
-        await target.waitFor({ timeout: 20000 });
+        await target.waitFor({ timeout: 5000 });
         await target.click();
         const composerFocused = await page.evaluate((sel) => {
           const node = document.querySelector(sel) as HTMLElement | null;
@@ -513,8 +799,14 @@ async function createContactAndMessage(name: string, phone: string, messageText:
 
   console.log(`Contact '${name}' created (or opened) and messaged at ${phoneDigits}.`);
 
-  // Mark contact as successfully processed
-  markContactProcessed(name, phoneDigits, 'processed');
+    // Mark contact as successfully processed
+    markContactProcessed(name, phoneDigits, 'processed');
+
+  } finally {
+    // Only close browser context if there was a critical error
+    // For normal operation (successful or recoverable errors), keep browser open
+    // The browser will be closed when the process ends or manually
+  }
 }
 
 export { createContactAndMessage };
@@ -534,5 +826,3 @@ async function main(): Promise<void> {
 if (import.meta.url === `file://${process.argv[1]}`) {
   main();
 }
-
-

@@ -1,14 +1,2 @@
-2025/09/26-14:31:56.621 18730 Reusing MANIFEST C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Local Storage\leveldb/MANIFEST-000001
-2025/09/26-14:31:56.625 18730 Recovering log #10
-2025/09/26-14:31:56.627 18730 Reusing old log C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Local Storage\leveldb/000010.log 
-2025/09/26-14:32:39.952 19654 Level-0 table #13: started
-2025/09/26-14:32:39.959 19654 Level-0 table #13: 15038 bytes OK
-2025/09/26-14:32:39.962 19654 Delete type=0 #10
-2025/09/26-14:32:39.964 18730 Compacting 4@0 + 0@1 files
-2025/09/26-14:32:39.971 18730 Generated table #14@0: 109 keys, 15665 bytes
-2025/09/26-14:32:39.971 18730 Compacted 4@0 + 0@1 files => 15665 bytes
-2025/09/26-14:32:39.972 18730 compacted to: files[ 0 1 0 0 0 0 0 ]
-2025/09/26-14:32:39.973 18730 Delete type=2 #3
-2025/09/26-14:32:39.973 18730 Delete type=2 #7
-2025/09/26-14:32:39.974 18730 Delete type=2 #9
-2025/09/26-14:32:39.974 18730 Delete type=2 #13
+2025/09/30-21:52:35.861 6510 Creating DB C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Local Storage\leveldb since it was missing.
+2025/09/30-21:52:35.888 6510 Reusing MANIFEST C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Local Storage\leveldb/MANIFEST-000001

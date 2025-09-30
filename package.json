@@ -5,16 +5,12 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "ui": "npm run build && node dist/server.js",
-    "electron": "npm run build && electron .",
-    "electron-dev": "npm run build && NODE_ENV=development electron .",
-    "dist": "npm run build && electron-builder",
-    "pack": "npm run build && electron-builder --dir"
+    "start": "npm run build && node dist/server.js",
+    "dev": "npm run build && node dist/server.js",
+    "ui": "npm run build && node dist/server.js"
   },
-  "description": "��#\u0000 \u0000W\u0000p\u0000p\u0000 \u0000A\u0000u\u0000t\u0000o\u0000m\u0000a\u0000t\u0000i\u0000o\u0000n\u0000\r\u0000 \u0000",
-  "main": "dist/electron-main.js",
+  "description": "WhatsApp Bulk Automation with AI - João Panizzutti Methodology",
+  "main": "dist/server.js",
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -33,7 +29,9 @@
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "multer": "^2.0.2",
-    "openai": "^5.23.1"
+    "openai": "^5.23.1",
+    "playwright": "^1.40.0",
+    "playwright-ghost": "^0.7.2"
   },
   "build": {
     "appId": "com.whatsapp.automation",

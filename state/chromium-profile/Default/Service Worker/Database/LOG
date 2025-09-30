@@ -1,3 +1,2 @@
-2025/09/26-14:31:56.590 dfdc Reusing MANIFEST C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Service Worker\Database/MANIFEST-000001
-2025/09/26-14:31:56.590 dfdc Recovering log #3
-2025/09/26-14:31:56.591 dfdc Reusing old log C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Service Worker\Database/000003.log 
+2025/09/30-21:52:36.803 6b34 Creating DB C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Service Worker\Database since it was missing.
+2025/09/30-21:52:36.810 6b34 Reusing MANIFEST C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Service Worker\Database/MANIFEST-000001

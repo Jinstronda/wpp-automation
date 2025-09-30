@@ -1,3 +1,2 @@
-2025/09/26-14:31:56.580 18b0c Reusing MANIFEST C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Sync Data\LevelDB/MANIFEST-000001
-2025/09/26-14:31:56.581 18b0c Recovering log #3
-2025/09/26-14:31:56.581 18b0c Reusing old log C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Sync Data\LevelDB/000003.log 
+2025/09/30-21:52:35.817 8444 Creating DB C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Sync Data\LevelDB since it was missing.
+2025/09/30-21:52:35.835 8444 Reusing MANIFEST C:\Users\joaop\Documents\Automations\Wpp Automation\state\chromium-profile\Default\Sync Data\LevelDB/MANIFEST-000001

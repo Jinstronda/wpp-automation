@@ -1,165 +1,407 @@
-# WhatsApp Automation
+# WhatsApp Bulk Automation with AI
 
-Automates WhatsApp Web to create contacts and send messages. Built with TypeScript and Playwright.
+**Intelligent WhatsApp automation for real estate agencies** using João Panizzutti's proven sales methodology. Automatically creates contacts, validates phone numbers, generates personalized messages, and manages bulk campaigns through an intuitive web interface.
 
-## What it does
+---
 
-- Creates new contacts with name and phone number
-- Sends messages to contacts automatically
-- Manages CSV lead lists
-- Searches existing contacts
-- Starts chats using phone numbers
-- Keeps browser sessions logged in
-- Handles WhatsApp UI changes with backup selectors
+## 🎯 Key Features
 
-## Setup
+### **Smart Contact Management**
+- ✅ **Pre-flight validation** - Instantly detects invalid/test numbers before launching browser
+- ✅ **Persistent blacklisting** - Remembers invalid numbers to skip them in future runs
+- ✅ **Auto-detection errors** - Identifies "not on WhatsApp" and invalid format issues immediately
+- ✅ **10x faster processing** - Validates in milliseconds instead of minutes per contact
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+### **AI-Powered Messaging**
+- 🤖 **Industry-specific openers** - Tailored first messages based on business type
+- 🎯 **Conversational approach** - Starts as potential customer, not salesperson
+- 🏙️ **Market context integration** - Includes city/location when available
+- 📊 **OpenAI GPT-4o-mini** - Smart message generation with fallback templates
 
-2. Build the project:
-   ```bash
-   npm run build
-   ```
+### **Enterprise-Grade Reliability**
+- 🔄 **Persistent browser session** - Single WhatsApp login for all contacts
+- 📝 **Comprehensive tracking** - JSON storage of all contact interactions
+- 🚫 **Smart failure detection** - Validates save button exists before proceeding
+- 🧹 **Automatic cleanup** - Returns to normal state when operations fail
+- 🎯 **Minimal stealth configuration** - Clean browser setup for maximum compatibility
 
-3. First run to create folders:
-   ```bash
-   npm start
-   ```
+---
 
-4. Launch WhatsApp Web (scan QR code once):
-   ```bash
-   node dist/automation/whatsappController.js
-   ```
+## 🚀 Quick Start
 
-## Usage
+### **Installation**
 
-### Create contact and send message
 ```bash
-CONTACT_NAME="John Doe" PHONE="1234567890" MESSAGE_TEXT="Hello!" node dist/automation/createContactAndMessage.js
+# Clone the repository
+git clone <your-repo-url>
+cd "Wpp Automation"
+
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
 ```
 
-### Search existing contact and message
+### **Running the Application**
+
 ```bash
-CONTACT_NAME="John Doe" MESSAGE_TEXT="Follow up" node dist/automation/searchAndSend.js
+# Start the web UI server (recommended)
+npm run ui
+
+# Or use these equivalent commands:
+npm start
+npm run dev
 ```
 
-### Start chat by phone number
-```bash
-PHONE="1234567890" MESSAGE_TEXT="Hello!" node dist/automation/startChatByPhone.js
-```
+The server will start at **http://localhost:4000**
 
-### Parse CSV leads
-```bash
-node dist/automation/parseLeads.js
-```
+---
 
-## How it works
+## 📖 How to Use
 
-### Main workflow (createContactAndMessage.js)
+### **1. Initial Setup**
 
-1. **Opens browser** - Launches Chromium with WhatsApp Web
-2. **Clicks "New Chat"** - Opens the new chat menu
-3. **Clicks "New Contact"** - Opens contact creation form
-4. **Fills name field** - Enters the contact name
-5. **Fills phone field** - Enters the phone number
-6. **Saves contact** - Clicks save button
-7. **Opens chat** - Navigates to the new contact's chat
-8. **Sends message** - Types and sends the message
+1. Run `npm run ui` to start the server
+2. Open http://localhost:4000 in your browser
+3. Click "Start Automation" to launch WhatsApp Web in a new browser window
+4. **Scan the QR code** with your phone on first use
+5. Your session is saved in `state/chromium-profile/` - no need to scan again!
+6. The browser stays open and logged in for all future contacts
 
-### Smart selector system
+### **2. Upload Your Contacts**
 
-The automation uses multiple ways to find elements on WhatsApp Web:
+**CSV Format Options:**
 
-1. **Primary selectors** - Current WhatsApp elements
-2. **Backup selectors** - Alternative ways to find the same element
-3. **Text-based finding** - Looks for visible text like "New contact"
-4. **Position-based** - If name field is first input, phone is second
-5. **Debug logging** - Shows available elements when it can't find what it needs
-
-### File structure
-
-```
-src/automation/
-├── whatsappController.ts     # Launches WhatsApp Web
-├── createContactAndMessage.ts # Main workflow: create + message
-├── searchAndSend.ts         # Find existing contact + message
-├── startChatByPhone.ts      # Start chat via phone number
-└── parseLeads.ts           # Read CSV leads
-
-src/data/leads.csv          # Your contact list
-src/config/settings.json    # Automation settings
-state/chromium-profile/     # Saved browser session
-```
-
-### CSV format
-
-Create `src/data/leads.csv`:
+**Option A: Google Maps Export**
 ```csv
-name,phone,businessName,promptVariant
-John Doe,1234567890,Acme Corp,variant1
-Jane Smith,0987654321,Tech Co,variant2
+Title,Rating,Reviews,Phone,Industry,Address,Website,Google Maps Link
+Sotheby's International,4.5,120,+12125551234,Real Estate,"123 Park Ave, Manhattan",https://example.com,https://maps.google.com/...
+Douglas Elliman,4.8,95,+12125555678,Real Estate,"456 Madison Ave, NYC",https://example.com,https://maps.google.com/...
 ```
 
-### Environment variables
+**Option B: Simple Format**
+```csv
+name,phone,businessName,address,industry
+John's Realty,3015551234,John's Real Estate Agency,"100 Main St, Miami",Real Estate
+Miami Properties,3055559999,Miami Property Group,"200 Ocean Dr, Miami",Real Estate
+```
 
-| Variable | What it does | Example |
-|----------|-------------|---------|
-| `CONTACT_NAME` | Contact name | `"John Doe"` |
-| `PHONE` | Phone number | `"1234567890"` |
-| `MESSAGE_TEXT` | Message to send | `"Hello there!"` |
+### **3. Processing Modes**
 
-## Success messages
+**🤖 AI Mode (Recommended)**
+- Leave "Message Template" field **empty**
+- AI generates industry-specific openers using João Panizzutti's methodology
+- Example: *"Thinking of investing in rental property in Manhattan — can we schedule a consultation?"*
 
-Look for these in the output:
+**📝 Template Mode**
+- Enter a custom message template
+- Use variables: `{{business}}`, `{{address}}`, `{{industry}}`, `{{city}}`
+- Example: *"Hi {{business}}, I found your {{industry}} business at {{address}}"*
 
-- `"WhatsApp Web loaded: Chat list visible"` - Browser ready
-- `"Form filled successfully: Name=..., Phone=..."` - Contact form completed
-- `"Contact 'X' created and messaged at Y"` - Everything worked
+### **4. Monitor Progress**
 
-## Common issues
+The activity log shows:
+- ✅ **Successful contacts** - Created and messaged
+- 🚫 **Fast skips** - Blacklisted numbers (milliseconds)
+- 🧪 **Test numbers** - Detected fake/test patterns
+- 📝 **Invalid format** - Phone format issues
+- 📵 **Not on WhatsApp** - Numbers not registered
 
-**Phone field not found** - Normal, uses backup methods
+---
 
-**Save button not found** - Normal, finds green button automatically
+## 🏗️ Architecture
 
-**Falls back to search** - Name or phone field didn't fill properly
+### **Core Components**
 
-**QR code appears** - Scan with your phone (only first time)
+```
+src/
+├── server.ts                          # Express web server + API endpoints
+├── automation/
+│   ├── browserManager.ts             # Shared browser context manager
+│   └── createContactAndMessage.ts    # Contact creation + messaging logic
+└── utils/
+    ├── fileUtils.ts                  # Phone validation + CSV parsing + tracking
+    └── aiMessageGenerator.ts         # João Panizzutti AI prompts
 
-## How the selectors work
+state/
+└── contact-tracking.json             # Persistent blacklist storage
 
-WhatsApp Web changes its HTML frequently. The automation handles this by trying multiple ways to find each element:
+web/
+├── index.html                        # Web UI
+└── app.js                            # Frontend logic
+```
 
-**For name field:**
-1. Tries exact current selector
-2. Tries paragraph with contenteditable
-3. Tries input with aria-label="Name"
-4. Tries input with placeholder="Name"
-5. Tries first input field in the form
-6. Logs all available fields for debugging
+### **Contact Processing Flow**
 
-**For phone field:**
-1. Tries exact current selector
-2. Tries input with aria-label containing "phone"
-3. Tries input with type="tel"
-4. Tries second input field (usually phone after name)
-5. Logs all available fields for debugging
+```
+1. Upload CSV → Parse leads
+2. For each contact:
+   ├─ Pre-flight validation (instant)
+   │  ├─ Check blacklist (persistent storage)
+   │  ├─ Check test number patterns
+   │  └─ Validate phone format
+   │
+   ├─ If INVALID → Fast skip (milliseconds)
+   │
+   ├─ If VALID → Launch browser (only once)
+   │  ├─ Click "New Contact"
+   │  ├─ Fill name + phone
+   │  ├─ Detect error messages
+   │  ├─ Check for green save button
+   │  │  └─ NO BUTTON? → Mark failed + cleanup
+   │  │
+   │  ├─ Click save button
+   │  ├─ Search for contact by name
+   │  │  └─ NOT FOUND? → Mark failed + cleanup
+   │  │
+   │  ├─ Generate AI message (only if successful)
+   │  └─ Send message
+   │
+   └─ Update tracking storage
+```
 
-**For save button:**
-1. Tries button with aria-label="Save contact"
-2. Tries button with checkmark icon
-3. Tries any green button (WhatsApp's brand color)
+---
 
-This makes the automation resilient to WhatsApp UI changes.
+## 🧠 AI Message Generation
 
-## Development
+The system generates industry-specific opening messages using a consultative selling approach:
 
-Build changes:
+### **Opening Message Strategy**
+- **Goal:** Start conversation as a potential customer
+- **Approach:** Lead with buyer intent, not sales pitch
+- **Tone:** Conversational, direct, single question only
+
+### **Industry-Specific Examples**
+- **Gym:** "Hey do you still offer trial passes"
+- **Dentist:** "Hi are you taking new patients this month"
+- **Restaurant:** "Hi are you taking reservations this week"
+- **Real Estate:** "Looking to relocate to [City] — are you taking new buyer clients?"
+- **Auto Repair:** "Hi do you handle urgent repairs today"
+- **Marketing Agency:** "Hi do you take on new clients this month"
+
+### **How It Works**
+1. Analyzes contact's industry and location
+2. Uses GPT-4o-mini to generate contextual opener
+3. Falls back to industry templates if AI unavailable
+4. Keeps messages short (1-2 sentences max)
+
+---
+
+## ⚡ Performance Optimizations
+
+### **Before Optimization**
+- ❌ 3-4 minutes per invalid contact
+- ❌ Browser launches for every number
+- ❌ Blacklist checked AFTER validation
+
+### **After Optimization**
+- ✅ **Milliseconds** per invalid contact
+- ✅ Browser launches **once** for entire batch
+- ✅ Blacklist checked **BEFORE** browser launch
+- ✅ **10x faster** bulk processing
+
+### **Pre-flight Validation**
+
+```typescript
+// Example validation checks:
+- Blacklist lookup (contact-tracking.json)
+- Test number patterns: 15550101, 1000xxxx, 1111111
+- Length validation: 10-15 digits
+- Country code detection: US (+1), PT (+351), UK (+44), etc.
+```
+
+---
+
+## 📊 Tracking & Storage
+
+### **Contact Tracking File**
+
+Location: `state/contact-tracking.json`
+
+```json
+{
+  "name": "Test Contact",
+  "phone": "15550101",
+  "status": "invalid_phone",
+  "reason": "This is not a valid phone number",
+  "timestamp": "2025-01-09T18:30:45.123Z"
+}
+```
+
+**Status Types:**
+- `processed` - Successfully created and messaged
+- `not_on_whatsapp` - Number not registered on WhatsApp
+- `invalid_phone` - Phone format invalid or rejected by WhatsApp
+- `failed` - Failed but can be retried
+
+---
+
+## 🛠️ Configuration
+
+### **Environment Variables**
+
+Create a `.env` file:
+
+```env
+# OpenAI API Key (for AI message generation)
+OPENAI_API_KEY=your-api-key-here
+
+# Optional: Model selection (default: gpt-4o-mini)
+OPENAI_MODEL=gpt-4o-mini
+```
+
+### **Supported Countries**
+
+Auto-detected via phone number prefix:
+- 🇵🇹 Portugal (+351)
+- 🇺🇸 United States (+1)
+- 🇬🇧 United Kingdom (+44)
+- 🇪🇸 Spain (+34)
+- 🇫🇷 France (+33)
+- 🇩🇪 Germany (+49)
+- 🇮🇹 Italy (+39)
+- 🇧🇷 Brazil (+55)
+- 🇮🇳 India (+91)
+- 🇨🇳 China (+86)
+
+**Note:** `+` symbol is optional - system strips all non-digits automatically
+
+---
+
+## 🔧 Development
+
+### **Build Project**
 ```bash
 npm run build
 ```
 
-The TypeScript files in `src/` compile to JavaScript in `dist/` which you run with node.
+### **Run Development Server**
+```bash
+npm run dev
+```
+
+### **Project Structure**
+```bash
+├── src/               # TypeScript source files
+├── dist/              # Compiled JavaScript (created by build)
+├── state/             # Browser profile + contact tracking
+├── web/               # Web UI files
+└── uploads/           # Temporary CSV uploads
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### **"Save button not found"**
+✅ **Expected behavior** - This means WhatsApp rejected the phone number
+- Phone marked as `invalid_phone` in tracking
+- System automatically cleans up and continues to next contact
+
+### **"Contact created but not found in search"**
+✅ **Expected behavior** - Contact was created but might not be on WhatsApp
+- System clears search field and returns to chat list
+- Marked as `invalid_phone` in tracking
+
+### **"QR Code not showing up"**
+🔍 **Browser profile issue** - The persistent profile may be corrupted
+- Delete `state/chromium-profile/` directory to reset
+- Run `npm run ui` again and scan QR code fresh
+- The simplified browser configuration should load QR code reliably
+
+### **"QR Code appears during automation"**
+❌ **Session expired** - Your WhatsApp Web session logged out
+- Re-scan QR code with your phone
+- Session will be saved in `state/chromium-profile/`
+
+### **"Pre-flight validation blocking valid numbers"**
+🔍 **Check blacklist** - Number might be in `state/contact-tracking.json`
+- Manually remove entry from JSON file if needed
+- Or rename/delete the entire file to start fresh
+
+---
+
+## 📝 API Endpoints
+
+### **POST /api/single-contact**
+Create single contact and send message
+
+```json
+{
+  "name": "John Doe",
+  "phone": "+12125551234",
+  "message": "Hello!"
+}
+```
+
+### **POST /api/upload-csv**
+Upload CSV file for bulk processing
+
+```bash
+Content-Type: multipart/form-data
+Field: csvFile
+```
+
+### **POST /api/start-bulk**
+Start bulk automation
+
+```json
+{
+  "contacts": [...],
+  "defaultMessage": "Optional template"
+}
+```
+
+### **GET /api/bulk-progress/:sessionId**
+Get bulk automation progress
+
+### **POST /api/stop-bulk/:sessionId**
+Stop running bulk automation
+
+---
+
+## 📄 License
+
+This project is private and proprietary.
+
+---
+
+## 🙏 Credits
+
+**Sales Methodology:** João Panizzutti's 6-phase framework for real estate lead generation
+
+**Built with:**
+- TypeScript
+- Express.js
+- Playwright (Chromium with persistent context)
+- OpenAI GPT-4o-mini
+
+---
+
+## 🔧 Technical Implementation
+
+### **Browser Architecture**
+- **Persistent Context**: Uses `chromium.launchPersistentContext()` to maintain WhatsApp login
+- **Minimal Configuration**: Clean setup with only essential stealth flags
+- **Session Storage**: Browser profile saved in `state/chromium-profile/`
+- **Single Instance**: Shared browser context for all contacts in a batch
+
+### **Key Browser Settings**
+```typescript
+// Minimal configuration for maximum compatibility
+{
+  headless: false,
+  viewport: { width: 1400, height: 900 },
+  args: [
+    '--disable-blink-features=AutomationControlled',
+    '--start-maximized'
+  ]
+}
+```
+
+### **Why This Works**
+- ✅ **No aggressive flags** that trigger WhatsApp detection
+- ✅ **Persistent profile** maintains login state between runs
+- ✅ **Clean browser fingerprint** appears like regular Chrome
+- ✅ **QR code loads reliably** on first run

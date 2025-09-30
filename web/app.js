@@ -1,474 +1,358 @@
-// WhatsApp Automation UI JavaScript
+// WhatsApp Automation - Ultra-Minimalist Black & White UI
+// Single-tab design with elegant simplicity
 
-// Global state
-let automationRunning = false;
-let currentProcessing = false;
-let bulkSessionId = null;
-let progressInterval = null;
-
-// DOM Elements
-const statusIndicator = document.getElementById('status-indicator');
-const serverStatus = document.getElementById('server-status');
-const lastAction = document.getElementById('last-action');
-const logOutput = document.getElementById('log-output');
-const currentTime = document.getElementById('current-time');
-
-// Initialize the application
-document.addEventListener('DOMContentLoaded', function() {
-    log('System', 'UI loaded successfully', 'info');
-    updateCurrentTime();
-    setInterval(updateCurrentTime, 1000);
-    checkServerStatus();
-
-    // Set up form listeners
-    setupFormListeners();
-});
-
-// Update current time
-function updateCurrentTime() {
-    currentTime.textContent = new Date().toLocaleString();
-}
-
-// Check server status
-async function checkServerStatus() {
-    try {
-        const response = await fetch('/api/status');
-        const data = await response.json();
-
-        if (response.ok) {
-            serverStatus.innerHTML = '<span class="success">✅ Running</span>';
-            log('System', `Server status: ${data.status}`, 'success');
-        } else {
-            throw new Error('Server not responding');
-        }
-    } catch (error) {
-        serverStatus.innerHTML = '<span class="error">❌ Error</span>';
-        log('System', `Server check failed: ${error.message}`, 'error');
-    }
-}
-
-// Tab switching functionality
-function showTab(tabName) {
-    // Hide all tabs
-    document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.classList.remove('active');
-    });
-
-    // Remove active class from all buttons
-    document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.classList.remove('active');
-    });
-
-    // Show selected tab
-    document.getElementById(`${tabName}-tab`).classList.add('active');
-
-    // Add active class to clicked button
-    event.target.classList.add('active');
-
-    log('UI', `Switched to ${tabName} tab`, 'info');
-}
-
-// Setup form event listeners
-function setupFormListeners() {
-    // Single contact form
-    document.getElementById('single-contact-form').addEventListener('submit', handleSingleContact);
-
-    // CSV upload form
-    document.getElementById('csv-upload-form').addEventListener('submit', handleCSVUpload);
-
-    // Settings form
-    document.getElementById('settings-form').addEventListener('submit', handleSettings);
-
-    // Control buttons
-    document.getElementById('start-automation-btn').addEventListener('click', startAutomation);
-    document.getElementById('stop-automation-btn').addEventListener('click', stopAutomation);
-    document.getElementById('launch-whatsapp-btn').addEventListener('click', launchWhatsApp);
-}
-
-// Handle single contact form submission
-async function handleSingleContact(event) {
-    event.preventDefault();
-
-    if (currentProcessing) {
-        log('System', 'Already processing a request. Please wait.', 'warning');
-        return;
+class WhatsAppAutomation {
+    constructor() {
+        this.isProcessing = false;
+        this.progressInterval = null;
+        this.bulkSessionId = null;
+        this.elements = this.initializeElements();
+        this.init();
     }
 
-    currentProcessing = true;
-    const submitBtn = document.getElementById('send-single-btn');
-    const originalText = submitBtn.textContent;
-
-    try {
-        submitBtn.textContent = '⏳ Processing...';
-        submitBtn.disabled = true;
-
-        const formData = new FormData(event.target);
-        const data = {
-            name: formData.get('name'),
-            phone: formData.get('phone'),
-            message: formData.get('message')
+    initializeElements() {
+        return {
+            // Status elements
+            statusText: document.getElementById('status-text'),
+            
+            // Forms
+            bulkForm: document.getElementById('csv-upload-form'),
+            
+            // Buttons
+            uploadCsvBtn: document.getElementById('upload-csv-btn'),
+            stopBulkBtn: document.getElementById('stop-bulk-btn'),
+            
+            // Progress elements
+            progressSection: document.getElementById('progress-section'),
+            progressFill: document.getElementById('progress-fill'),
+            progressText: document.getElementById('progress-text'),
+            
+            // Status messages
+            bulkStatus: document.getElementById('bulk-status'),
+            
+            // Logs
+            logOutput: document.getElementById('log-output'),
+            
+            // Time
+            currentTime: document.getElementById('current-time')
         };
-
-        log('Action', `Creating contact: ${data.name} (${data.phone})`, 'info');
-        updateLastAction(`Creating contact: ${data.name}`);
-
-        const response = await fetch('/api/single-contact', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            log('Success', `Contact processed: ${result.message}`, 'success');
-            updateLastAction(`Sent to ${data.name}`);
-            event.target.reset(); // Clear form
-        } else {
-            throw new Error(result.error);
-        }
-    } catch (error) {
-        log('Error', `Failed to process contact: ${error.message}`, 'error');
-        updateLastAction('Error occurred');
-    } finally {
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
-        currentProcessing = false;
-    }
-}
-
-// Handle CSV upload form submission
-async function handleCSVUpload(event) {
-    event.preventDefault();
-
-    if (currentProcessing) {
-        log('System', 'Already processing a request. Please wait.', 'warning');
-        return;
     }
 
-    currentProcessing = true;
-    const submitBtn = document.getElementById('upload-csv-btn');
-    const originalText = submitBtn.textContent;
-
-    try {
-        submitBtn.textContent = '⏳ Uploading...';
-        submitBtn.disabled = true;
-
-        const formData = new FormData(event.target);
-
-        log('Action', 'Uploading CSV file...', 'info');
-        updateLastAction('Uploading CSV');
-
-        const response = await fetch('/api/upload-csv', {
-            method: 'POST',
-            body: formData
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            log('Success', `CSV uploaded: ${result.message}`, 'success');
-            updateLastAction('CSV uploaded');
-            showProgressSection();
-
-            // Store contacts for bulk processing
-            window.csvContacts = result.data.contacts;
-
-            // Show start automation button
-            showStartBulkButton(result.data.contacts.length);
-        } else {
-            throw new Error(result.error);
-        }
-    } catch (error) {
-        log('Error', `Failed to upload CSV: ${error.message}`, 'error');
-        updateLastAction('CSV upload failed');
-    } finally {
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
-        currentProcessing = false;
-    }
-}
-
-// Handle settings form submission
-async function handleSettings(event) {
-    event.preventDefault();
-
-    try {
-        const formData = new FormData(event.target);
-        const settings = {
-            minDelay: parseInt(formData.get('minDelay')),
-            maxDelay: parseInt(formData.get('maxDelay')),
-            retries: parseInt(formData.get('retries')),
-            timeout: parseInt(formData.get('timeout'))
-        };
-
-        log('Action', 'Updating settings...', 'info');
-
-        const response = await fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(settings)
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            log('Success', 'Settings updated successfully', 'success');
-            updateLastAction('Settings updated');
-        } else {
-            throw new Error(result.error);
-        }
-    } catch (error) {
-        log('Error', `Failed to update settings: ${error.message}`, 'error');
-    }
-}
-
-// Control functions
-function startAutomation() {
-    if (!automationRunning) {
-        automationRunning = true;
-        document.getElementById('start-automation-btn').disabled = true;
-        document.getElementById('stop-automation-btn').disabled = false;
-        statusIndicator.innerHTML = '<span class="success">🟢 Running</span>';
-        log('System', 'Automation started', 'success');
-        updateLastAction('Automation started');
-    }
-}
-
-function stopAutomation() {
-    if (automationRunning) {
-        automationRunning = false;
-        document.getElementById('start-automation-btn').disabled = false;
-        document.getElementById('stop-automation-btn').disabled = true;
-        statusIndicator.innerHTML = '<span class="info">🔄 Ready</span>';
-        log('System', 'Automation stopped', 'warning');
-        updateLastAction('Automation stopped');
-    }
-}
-
-function launchWhatsApp() {
-    log('Action', 'Launching WhatsApp Web...', 'info');
-    updateLastAction('Launching WhatsApp Web');
-    // TODO: Call API to launch WhatsApp
-}
-
-// Utility functions
-function showProgressSection() {
-    document.getElementById('progress-section').style.display = 'block';
-}
-
-function updateProgress(current, total) {
-    const progressBar = document.getElementById('progress-bar');
-    const progressText = document.getElementById('progress-text');
-
-    progressBar.value = (current / total) * 100;
-    progressText.textContent = `${current} / ${total} contacts processed`;
-}
-
-function updateLastAction(action) {
-    lastAction.textContent = action;
-}
-
-function log(category, message, type = 'info') {
-    const timestamp = new Date().toLocaleTimeString();
-    const logEntry = `[${timestamp}] [${category}] ${message}\\n`;
-
-    const span = document.createElement('span');
-    span.className = type;
-    span.textContent = logEntry;
-
-    logOutput.appendChild(span);
-    logOutput.scrollTop = logOutput.scrollHeight;
-}
-
-function clearLogs() {
-    logOutput.innerHTML = '<span class="info">[System] Logs cleared</span>';
-}
-
-// Bulk automation functions
-function showStartBulkButton(contactCount) {
-    const progressSection = document.getElementById('progress-section');
-    let startButton = document.getElementById('start-bulk-btn');
-
-    if (!startButton) {
-        startButton = document.createElement('button');
-        startButton.id = 'start-bulk-btn';
-        startButton.innerHTML = `🚀 Start Bulk Automation (${contactCount} contacts)`;
-        startButton.onclick = startBulkAutomation;
-        startButton.style.marginTop = '1rem';
-        progressSection.appendChild(startButton);
-    } else {
-        startButton.innerHTML = `🚀 Start Bulk Automation (${contactCount} contacts)`;
-    }
-}
-
-async function startBulkAutomation() {
-    if (!window.csvContacts || window.csvContacts.length === 0) {
-        log('Error', 'No contacts available for bulk automation', 'error');
-        return;
+    init() {
+        this.setupEventListeners();
+        this.updateTime();
+        this.checkServerStatus();
+        this.log('System initialized successfully', 'info');
     }
 
-    try {
-        const defaultMessage = document.querySelector('textarea[name="defaultMessage"]').value;
-
-        log('Action', `Starting bulk automation for ${window.csvContacts.length} contacts...`, 'info');
-        updateLastAction('Starting bulk automation');
-
-        const response = await fetch('/api/start-bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contacts: window.csvContacts,
-                defaultMessage: defaultMessage
-            })
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            bulkSessionId = result.sessionId;
-            log('Success', result.message, 'success');
-            updateLastAction('Bulk automation running');
-
-            // Hide start button and show stop button
-            document.getElementById('start-bulk-btn').style.display = 'none';
-            showStopBulkButton();
-
-            // Start progress monitoring
-            startProgressMonitoring();
-        } else {
-            throw new Error(result.error);
-        }
-    } catch (error) {
-        log('Error', `Failed to start bulk automation: ${error.message}`, 'error');
-        updateLastAction('Bulk automation failed');
-    }
-}
-
-function showStopBulkButton() {
-    const progressSection = document.getElementById('progress-section');
-    let stopButton = document.getElementById('stop-bulk-btn');
-
-    if (!stopButton) {
-        stopButton = document.createElement('button');
-        stopButton.id = 'stop-bulk-btn';
-        stopButton.innerHTML = '⏸️ Stop Bulk Automation';
-        stopButton.className = 'contrast';
-        stopButton.onclick = stopBulkAutomation;
-        stopButton.style.marginTop = '1rem';
-        progressSection.appendChild(stopButton);
+    setupEventListeners() {
+        // Form submissions
+        this.elements.bulkForm?.addEventListener('submit', (e) => this.handleBulkUpload(e));
+        
+        // Control buttons
+        this.elements.stopBulkBtn?.addEventListener('click', () => this.stopBulkProcessing());
+        
+        // Update time every minute
+        setInterval(() => this.updateTime(), 60000);
     }
 
-    stopButton.style.display = 'block';
-}
-
-async function stopBulkAutomation() {
-    if (!bulkSessionId) return;
-
-    try {
-        const response = await fetch(`/api/stop-bulk/${bulkSessionId}`, {
-            method: 'POST'
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            log('Warning', 'Bulk automation stopped by user', 'warning');
-            updateLastAction('Bulk automation stopped');
-            stopProgressMonitoring();
-        }
-    } catch (error) {
-        log('Error', `Failed to stop bulk automation: ${error.message}`, 'error');
-    }
-}
-
-function startProgressMonitoring() {
-    if (progressInterval) clearInterval(progressInterval);
-
-    progressInterval = setInterval(async () => {
-        if (!bulkSessionId) return;
-
+    // Server Status
+    async checkServerStatus() {
         try {
-            const response = await fetch(`/api/bulk-progress/${bulkSessionId}`);
-            const progress = await response.json();
-
+            const response = await fetch('/api/status');
+            const result = await this.handleJsonResponse(response, 'Server status check');
+            
             if (response.ok) {
-                updateProgress(progress.processedContacts, progress.totalContacts);
-
-                // Update progress text with detailed stats
-                const progressText = document.getElementById('progress-text');
-                let statsText = `${progress.processedContacts} / ${progress.totalContacts} contacts processed`;
-
-                if (progress.successfulContacts > 0 || progress.failedContacts > 0 || progress.notOnWhatsAppContacts > 0 || progress.skippedContacts > 0) {
-                    statsText += ` (✅ ${progress.successfulContacts} success`;
-
-                    if (progress.failedContacts > 0) {
-                        statsText += `, ❌ ${progress.failedContacts} failed`;
-                    }
-
-                    if (progress.notOnWhatsAppContacts > 0) {
-                        statsText += `, 📵 ${progress.notOnWhatsAppContacts} not on WhatsApp`;
-                    }
-
-                    if (progress.skippedContacts > 0) {
-                        statsText += `, ⏭️ ${progress.skippedContacts} skipped`;
-                    }
-
-                    statsText += ')';
-                }
-
-                progressText.textContent = statsText;
-
-                // Update current contact being processed
-                if (progress.currentContact) {
-                    updateLastAction(`Processing: ${progress.currentContact}`);
-                }
-
-                // Log recent messages
-                if (progress.logs && progress.logs.length > 0) {
-                    const lastLog = progress.logs[progress.logs.length - 1];
-                    if (lastLog.includes('✅')) {
-                        log('Success', lastLog, 'success');
-                    } else if (lastLog.includes('❌')) {
-                        log('Error', lastLog, 'error');
-                    } else if (lastLog.includes('📵')) {
-                        log('Warning', lastLog, 'warning');
-                    } else if (lastLog.includes('⏭️')) {
-                        log('Info', lastLog, 'info');
-                    } else {
-                        log('Info', lastLog, 'info');
-                    }
-                }
-
-                // Check if completed
-                if (progress.status === 'completed' || progress.status === 'failed' || progress.status === 'stopped') {
-                    stopProgressMonitoring();
-                    document.getElementById('stop-bulk-btn').style.display = 'none';
-                    updateLastAction(`Bulk automation ${progress.status}`);
-
-                    if (progress.status === 'completed') {
-                        let completionMsg = `Bulk automation completed: ${progress.successfulContacts} successful`;
-                        if (progress.failedContacts > 0) completionMsg += `, ${progress.failedContacts} failed`;
-                        if (progress.notOnWhatsAppContacts > 0) completionMsg += `, ${progress.notOnWhatsAppContacts} not on WhatsApp`;
-                        if (progress.skippedContacts > 0) completionMsg += `, ${progress.skippedContacts} skipped`;
-
-                        log('Success', completionMsg, 'success');
-                    }
-                }
+                this.updateStatus('System Active');
+            } else {
+                throw new Error('Server not responding');
             }
         } catch (error) {
-            console.error('Progress monitoring error:', error);
+            this.updateStatus('Connection Error');
+            this.log(`Server check failed: ${error.message}`, 'error');
         }
-    }, 2000); // Check every 2 seconds
-}
+    }
 
-function stopProgressMonitoring() {
-    if (progressInterval) {
-        clearInterval(progressInterval);
-        progressInterval = null;
+    // Bulk Upload Handler
+    async handleBulkUpload(event) {
+        event.preventDefault();
+        
+        if (this.isProcessing) {
+            this.showStatus('bulk', 'Already processing a request', 'info');
+            return;
+        }
+
+        this.isProcessing = true;
+        const originalText = this.elements.uploadCsvBtn.textContent;
+        
+        try {
+            this.elements.uploadCsvBtn.textContent = 'Uploading...';
+            this.elements.uploadCsvBtn.disabled = true;
+            this.elements.uploadCsvBtn.classList.add('loading');
+
+            const formData = new FormData(event.target);
+
+            this.log('Uploading CSV file...', 'info');
+            this.updateStatus('Uploading...');
+
+            const response = await fetch('/api/upload-csv', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await this.handleJsonResponse(response, 'CSV upload');
+
+            if (response.ok) {
+                this.showStatus('bulk', `CSV uploaded: ${result.data.contacts.length} contacts found`, 'success');
+                this.log(`✅ CSV uploaded: ${result.data.contacts.length} contacts`, 'success');
+
+                // Start bulk processing
+                await this.startBulkProcessing(result.data.contacts, formData.get('defaultMessage'));
+            } else {
+                throw new Error(result.error || 'Upload failed');
+            }
+        } catch (error) {
+            this.showStatus('bulk', `Error: ${error.message}`, 'error');
+            this.log(`❌ Upload failed: ${error.message}`, 'error');
+            this.updateStatus('Error');
+        } finally {
+            this.elements.uploadCsvBtn.textContent = originalText;
+            this.elements.uploadCsvBtn.disabled = false;
+            this.elements.uploadCsvBtn.classList.remove('loading');
+            this.isProcessing = false;
+        }
+    }
+
+    // Start Bulk Processing
+    async startBulkProcessing(contacts, defaultMessage) {
+        try {
+            this.log(`Starting bulk processing for ${contacts.length} contacts...`, 'info');
+            this.updateStatus('Processing...');
+
+            const response = await fetch('/api/start-bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contacts: contacts,
+                    defaultMessage: defaultMessage
+                })
+            });
+
+            const result = await this.handleJsonResponse(response, 'Bulk processing start');
+
+            if (response.ok) {
+                this.bulkSessionId = result.sessionId;
+                this.showProgressSection(contacts.length);
+                this.startProgressMonitoring();
+                this.log('✅ Bulk processing started', 'success');
+            } else {
+                throw new Error(result.error || 'Failed to start bulk processing');
+            }
+        } catch (error) {
+            this.showStatus('bulk', `Error starting bulk processing: ${error.message}`, 'error');
+            this.log(`❌ Bulk processing failed: ${error.message}`, 'error');
+        }
+    }
+
+    // Progress Monitoring
+    startProgressMonitoring() {
+        if (this.progressInterval) clearInterval(this.progressInterval);
+
+        this.progressInterval = setInterval(async () => {
+            if (!this.bulkSessionId) return;
+
+            try {
+                const response = await fetch(`/api/bulk-progress/${this.bulkSessionId}`);
+                const progress = await this.handleJsonResponse(response, 'Progress monitoring');
+
+                if (response.ok) {
+                    this.updateProgress(progress.processedContacts, progress.totalContacts);
+
+                    // Update progress text with stats
+                    let statsText = `${progress.processedContacts} / ${progress.totalContacts} processed`;
+
+                    if (progress.successfulContacts > 0 || progress.failedContacts > 0) {
+                        statsText += ` (✅ ${progress.successfulContacts} success`;
+                        if (progress.failedContacts > 0) {
+                            statsText += `, ❌ ${progress.failedContacts} failed`;
+                        }
+                        if (progress.notOnWhatsAppContacts > 0) {
+                            statsText += `, 📵 ${progress.notOnWhatsAppContacts} not on WhatsApp`;
+                        }
+                        statsText += ')';
+                    }
+
+                    this.elements.progressText.textContent = statsText;
+
+                    // Update status
+                    if (progress.currentContact) {
+                        this.updateStatus(`Processing: ${progress.currentContact}`);
+                    }
+
+                    // Log recent messages
+                    if (progress.logs && progress.logs.length > 0) {
+                        const lastLog = progress.logs[progress.logs.length - 1];
+                        if (lastLog.includes('✅')) {
+                            this.log(lastLog, 'success');
+                        } else if (lastLog.includes('❌')) {
+                            this.log(lastLog, 'error');
+                        } else if (lastLog.includes('📵')) {
+                            this.log(lastLog, 'warning');
+                        } else {
+                            this.log(lastLog, 'info');
+                        }
+                    }
+
+                    // Check if completed
+                    if (progress.status === 'completed' || progress.status === 'failed' || progress.status === 'stopped') {
+                        this.stopProgressMonitoring();
+                        this.hideProgressSection();
+
+                        if (progress.status === 'completed') {
+                            const completionMsg = `✅ Bulk processing completed: ${progress.successfulContacts} successful`;
+                            this.showStatus('bulk', completionMsg, 'success');
+                            this.log(completionMsg, 'success');
+                            this.updateStatus('Completed');
+                        } else {
+                            this.showStatus('bulk', `Processing ${progress.status}`, 'info');
+                            this.updateStatus('Stopped');
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Progress monitoring error:', error);
+            }
+        }, 2000);
+    }
+
+    stopProgressMonitoring() {
+        if (this.progressInterval) {
+            clearInterval(this.progressInterval);
+            this.progressInterval = null;
+        }
+    }
+
+    // Stop Bulk Processing
+    async stopBulkProcessing() {
+        if (!this.bulkSessionId) return;
+
+        try {
+            const response = await fetch(`/api/stop-bulk/${this.bulkSessionId}`, {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                this.log('⏸️ Bulk processing stopped by user', 'warning');
+                this.updateStatus('Stopped');
+                this.stopProgressMonitoring();
+                this.hideProgressSection();
+            }
+        } catch (error) {
+            this.log(`❌ Failed to stop bulk processing: ${error.message}`, 'error');
+        }
+    }
+
+    // UI Helper Functions
+    updateStatus(text) {
+        if (this.elements.statusText) {
+            this.elements.statusText.textContent = text;
+        }
+    }
+
+    showStatus(target, message, type) {
+        const statusEl = this.elements[`${target}Status`];
+        if (statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = `status-message ${type}`;
+            statusEl.style.display = 'block';
+
+            // Auto-hide success messages
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusEl.style.opacity = '0';
+                    setTimeout(() => {
+                        statusEl.style.display = 'none';
+                        statusEl.style.opacity = '1';
+                    }, 300);
+                }, 3000);
+            }
+        }
+    }
+
+    showProgressSection(totalContacts) {
+        this.elements.progressSection?.classList.add('active');
+        this.updateProgress(0, totalContacts);
+    }
+
+    hideProgressSection() {
+        this.elements.progressSection?.classList.remove('active');
+    }
+
+    updateProgress(current, total) {
+        const percentage = total > 0 ? (current / total) * 100 : 0;
+        if (this.elements.progressFill) {
+            this.elements.progressFill.style.width = `${percentage}%`;
+        }
+    }
+
+    // Enhanced logging
+    log(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry log-${type}`;
+        logEntry.textContent = `[${timestamp}] ${message}`;
+
+        this.elements.logOutput?.appendChild(logEntry);
+        this.elements.logOutput?.scrollTo(0, this.elements.logOutput.scrollHeight);
+    }
+
+    clearLogs() {
+        if (this.elements.logOutput) {
+            this.elements.logOutput.innerHTML = '<div class="log-entry log-info">[System] Logs cleared</div>';
+        }
+    }
+
+    updateTime() {
+        if (this.elements.currentTime) {
+            this.elements.currentTime.textContent = new Date().toLocaleString();
+        }
+    }
+
+    // JSON Response Handler
+    async handleJsonResponse(response, context = 'API call') {
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            let errorMessage = `Server returned non-JSON response`;
+            
+            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                if (text.includes('404')) {
+                    errorMessage = 'Server endpoint not found (404). Please check if the server is running.';
+                } else if (text.includes('500')) {
+                    errorMessage = 'Server internal error (500). Please check server logs.';
+                } else {
+                    errorMessage = `Server returned HTML instead of JSON. This usually means the server is not running or there's a routing issue.`;
+                }
+            } else {
+                errorMessage = `Server returned non-JSON response: ${text.substring(0, 200)}...`;
+            }
+            
+            throw new Error(`${context} failed: ${errorMessage}`);
+        }
+        
+        return await response.json();
     }
 }
 
-// Export functions for global access
-window.showTab = showTab;
-window.clearLogs = clearLogs;
+// Global function for clearing logs
+function clearLogs() {
+    if (app) {
+        app.clearLogs();
+    }
+}
+
+// Initialize the application
+let app;
+document.addEventListener('DOMContentLoaded', () => {
+    app = new WhatsAppAutomation();
+});
