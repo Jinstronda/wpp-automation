@@ -30,14 +30,21 @@ const bulkProgressStore = new Map<string, BulkProgress>();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase payload size limits to handle large CSV files (50MB limit)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve static files (for the frontend)
 app.use(express.static(path.join(process.cwd(), 'web')));
 
-// Multer for file uploads
-const upload = multer({ dest: 'uploads/' });
+// Multer for file uploads with increased size limit
+const upload = multer({
+  dest: 'uploads/',
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB max file size
+    files: 1 // Only accept 1 file at a time
+  }
+});
 
 // API Routes
 app.get('/api/status', (req, res) => {

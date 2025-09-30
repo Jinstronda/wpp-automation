@@ -127,6 +127,14 @@ class WhatsAppAutomation {
 
             const formData = new FormData(event.target);
 
+            // Validate file size before upload
+            const fileInput = document.getElementById('csv-file');
+            const file = fileInput?.files[0];
+            if (file) {
+                this.validateFileSize(file);
+                this.log(`CSV file size: ${(file.size / 1024).toFixed(2)}KB`, 'info');
+            }
+
             // Get the message based on current mode
             let messageContent;
             if (this.currentMode === 'template') {
@@ -354,6 +362,15 @@ class WhatsAppAutomation {
 
         this.elements.logOutput?.appendChild(logEntry);
         this.elements.logOutput?.scrollTo(0, this.elements.logOutput.scrollHeight);
+    }
+
+    // Validate file size before upload
+    validateFileSize(file) {
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        if (file.size > maxSize) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            throw new Error(`File too large (${sizeMB}MB). Maximum size is 50MB. Please reduce the number of contacts in your CSV.`);
+        }
     }
 
     clearLogs() {
