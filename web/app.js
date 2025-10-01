@@ -44,7 +44,20 @@ class WhatsAppAutomation {
             logOutput: document.getElementById('log-output'),
 
             // Time
-            currentTime: document.getElementById('current-time')
+            currentTime: document.getElementById('current-time'),
+
+            // Tabs
+            tabBtns: document.querySelectorAll('.tab-btn'),
+            tabContents: document.querySelectorAll('.tab-content'),
+
+            // Contacts
+            contactsSearch: document.getElementById('contacts-search'),
+            contactsTbody: document.getElementById('contacts-tbody'),
+            contactsEmptyState: document.getElementById('contacts-empty-state'),
+            statTotal: document.getElementById('stat-total'),
+            statPending: document.getElementById('stat-pending'),
+            statMessaged: document.getElementById('stat-messaged'),
+            statFailed: document.getElementById('stat-failed')
         };
     }
 
@@ -67,8 +80,156 @@ class WhatsAppAutomation {
         this.elements.modeTemplateBtn?.addEventListener('click', () => this.switchMode('template'));
         this.elements.modeAiPromptBtn?.addEventListener('click', () => this.switchMode('ai-prompt'));
 
+        // Tab switching
+        this.elements.tabBtns?.forEach(btn => {
+            btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
+        });
+
+        // Contacts search
+        this.elements.contactsSearch?.addEventListener('input', (e) => this.searchContacts(e.target.value));
+
         // Update time every minute
         setInterval(() => this.updateTime(), 60000);
+    }
+
+    // Tab Management
+    switchTab(tabName) {
+        // Update tab buttons
+        this.elements.tabBtns?.forEach(btn => {
+            if (btn.dataset.tab === tabName) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // Update tab content
+        this.elements.tabContents?.forEach(content => {
+            if (content.id === `${tabName}-tab`) {
+                content.classList.add('active');
+            } else {
+                content.classList.remove('active');
+            }
+        });
+
+        // Load contacts if switching to contacts tab
+        if (tabName === 'contacts') {
+            this.loadContacts();
+            this.loadContactStats();
+        }
+
+        this.log(`Switched to ${tabName} tab`, 'info');
+    }
+
+    // Contacts Management
+    async loadContacts() {
+        try {
+            const response = await fetch('/api/contacts');
+            const result = await this.handleJsonResponse(response, 'Load contacts');
+
+            if (response.ok && result.data) {
+                this.allContacts = result.data;
+                this.displayContacts(result.data);
+            }
+        } catch (error) {
+            this.log(`Failed to load contacts: ${error.message}`, 'error');
+        }
+    }
+
+    async loadContactStats() {
+        try {
+            const response = await fetch('/api/contacts/stats');
+            const result = await this.handleJsonResponse(response, 'Load stats');
+
+            if (response.ok && result.data) {
+                const stats = result.data;
+                if (this.elements.statTotal) this.elements.statTotal.textContent = stats.total || 0;
+                if (this.elements.statPending) this.elements.statPending.textContent = stats.pending || 0;
+                if (this.elements.statMessaged) this.elements.statMessaged.textContent = stats.messaged || 0;
+                if (this.elements.statFailed) this.elements.statFailed.textContent = (stats.failed + stats.notOnWhatsApp + stats.invalidPhone) || 0;
+            }
+        } catch (error) {
+            this.log(`Failed to load stats: ${error.message}`, 'error');
+        }
+    }
+
+    displayContacts(contacts) {
+        const tbody = this.elements.contactsTbody;
+        const emptyState = this.elements.contactsEmptyState;
+
+        if (!tbody) return;
+
+        if (!contacts || contacts.length === 0) {
+            tbody.innerHTML = '';
+            if (emptyState) emptyState.classList.remove('hidden');
+            return;
+        }
+
+        if (emptyState) emptyState.classList.add('hidden');
+
+        tbody.innerHTML = contacts.map(contact => `
+            <tr>
+                <td>${this.escapeHtml(contact.lead.name || 'N/A')}</td>
+                <td>${this.escapeHtml(contact.lead.businessName || 'N/A')}</td>
+                <td>${this.escapeHtml(contact.normalizedPhone || 'N/A')}</td>
+                <td>${this.escapeHtml(contact.lead.city || 'N/A')}</td>
+                <td><span class="status-badge status-${contact.status}">${contact.status.replace('_', ' ')}</span></td>
+                <td>${new Date(contact.dateAdded).toLocaleDateString()}</td>
+                <td>
+                    <button class="btn btn-small btn-danger" onclick="app.deleteContact('${this.escapeHtml(contact.normalizedPhone)}')">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    searchContacts(query) {
+        if (!this.allContacts) return;
+
+        const lowercaseQuery = query.toLowerCase();
+        const filtered = this.allContacts.filter(contact => {
+            const searchFields = [
+                contact.lead.name,
+                contact.lead.businessName,
+                contact.normalizedPhone,
+                contact.lead.city
+            ].map(field => (field || '').toLowerCase());
+
+            return searchFields.some(field => field.includes(lowercaseQuery));
+        });
+
+        this.displayContacts(filtered);
+    }
+
+    async deleteContact(phone) {
+        if (!confirm('Are you sure you want to delete this contact?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/contacts/${encodeURIComponent(phone)}`, {
+                method: 'DELETE'
+            });
+
+            const result = await this.handleJsonResponse(response, 'Delete contact');
+
+            if (response.ok) {
+                this.log(`Contact deleted: ${phone}`, 'success');
+                this.loadContacts();
+                this.loadContactStats();
+            } else {
+                throw new Error(result.error || 'Failed to delete contact');
+            }
+        } catch (error) {
+            this.log(`Failed to delete contact: ${error.message}`, 'error');
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     // Switch between template and AI prompt modes

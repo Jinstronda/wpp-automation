@@ -410,6 +410,171 @@
             display: none !important;
         }
 
+        /* Tab Navigation */
+        .tab-navigation {
+            display: flex;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-xl);
+            border-bottom: 1px solid var(--gray-800);
+            padding-bottom: var(--space-xs);
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--gray-400);
+            font-size: 16px;
+            font-weight: 600;
+            padding: var(--space-sm) var(--space-md);
+            cursor: pointer;
+            transition: all var(--duration-normal) var(--ease);
+            border-bottom: 2px solid transparent;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .tab-btn:hover {
+            color: var(--white);
+        }
+
+        .tab-btn.active {
+            color: var(--white);
+            border-bottom-color: var(--white);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Contacts Statistics */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-md);
+            margin-bottom: var(--space-xl);
+        }
+
+        .stat-card {
+            background: var(--gray-950);
+            border: 1px solid var(--gray-800);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 900;
+            margin-bottom: var(--space-xs);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--gray-400);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Contacts Table */
+        .contacts-table-container {
+            overflow-x: auto;
+            margin-top: var(--space-md);
+        }
+
+        .contacts-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .contacts-table th,
+        .contacts-table td {
+            padding: var(--space-sm);
+            text-align: left;
+            border-bottom: 1px solid var(--gray-800);
+        }
+
+        .contacts-table th {
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 12px;
+            color: var(--gray-400);
+        }
+
+        .contacts-table tr:hover {
+            background: var(--gray-950);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: var(--radius-pill);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-pending {
+            background: var(--gray-700);
+            color: var(--gray-300);
+        }
+
+        .status-messaged {
+            background: var(--white);
+            color: var(--black);
+        }
+
+        .status-failed {
+            background: var(--gray-600);
+            color: var(--gray-200);
+        }
+
+        .status-not_on_whatsapp {
+            background: var(--gray-700);
+            color: var(--gray-400);
+        }
+
+        .status-invalid_phone {
+            background: var(--gray-800);
+            color: var(--gray-500);
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            min-width: auto;
+        }
+
+        .btn-danger {
+            background: var(--gray-800);
+            color: var(--white);
+        }
+
+        .btn-danger:hover {
+            background: var(--gray-700);
+        }
+
+        .search-box {
+            margin-bottom: var(--space-md);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: var(--space-3xl) var(--space-md);
+            color: var(--gray-500);
+        }
+
+        .empty-state h3 {
+            font-size: 24px;
+            margin-bottom: var(--space-sm);
+        }
+
         /* Progress Section */
         .progress-section {
             display: none;
@@ -654,8 +819,16 @@
         </div>
             </section>
 
-            <!-- Upload Form -->
-            <div class="card">
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="tab-btn active" data-tab="automation">⚡ Automation</button>
+                <button class="tab-btn" data-tab="contacts">👥 Contacts</button>
+            </div>
+
+            <!-- Automation Tab -->
+            <div class="tab-content active" id="automation-tab">
+                <!-- Upload Form -->
+                <div class="card">
                 <h2>Bulk Contact <span class="emphasized">Automation</span></h2>
                 <p style="margin-bottom: var(--space-xl);">Upload your CSV and personalize your outreach message</p>
                 
@@ -714,18 +887,84 @@
                 </form>
             </div>
 
-            <!-- Activity Logs -->
-            <div class="card">
-                <h3>Activity <span class="emphasized">Log</span></h3>
-                <p style="margin-bottom: var(--space-md); font-size: 14px;">Real-time system events and processing status</p>
-                
-                <div id="log-output" class="logs">
-                    <div class="log-entry log-info">[System] WhatsApp Automation initialized</div>
-        </div>
+                <!-- Activity Logs -->
+                <div class="card">
+                    <h3>Activity <span class="emphasized">Log</span></h3>
+                    <p style="margin-bottom: var(--space-md); font-size: 14px;">Real-time system events and processing status</p>
 
-                <button onclick="clearLogs()" class="btn btn-secondary" style="width: 100%; margin-top: var(--space-md);">
-                Clear Logs
-            </button>
+                    <div id="log-output" class="logs">
+                        <div class="log-entry log-info">[System] WhatsApp Automation initialized</div>
+            </div>
+
+                    <button onclick="clearLogs()" class="btn btn-secondary" style="width: 100%; margin-top: var(--space-md);">
+                    Clear Logs
+                </button>
+                </div>
+            </div>
+
+            <!-- Contacts Tab -->
+            <div class="tab-content" id="contacts-tab">
+                <!-- Statistics Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">Total Contacts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-pending">0</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-messaged">0</div>
+                        <div class="stat-label">Messaged</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-failed">0</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                </div>
+
+                <!-- Contacts Table Card -->
+                <div class="card">
+                    <h2>Contacts <span class="emphasized">Database</span></h2>
+                    <p style="margin-bottom: var(--space-md);">Manage and view all imported contacts</p>
+
+                    <!-- Search Box -->
+                    <div class="search-box">
+                        <input
+                            type="text"
+                            id="contacts-search"
+                            class="form-input"
+                            placeholder="Search by name, business, phone, or city..."
+                        >
+                    </div>
+
+                    <!-- Contacts Table -->
+                    <div class="contacts-table-container">
+                        <table class="contacts-table" id="contacts-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Business</th>
+                                    <th>Phone</th>
+                                    <th>City</th>
+                                    <th>Status</th>
+                                    <th>Date Added</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contacts-tbody">
+                                <!-- Contacts will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div class="empty-state hidden" id="contacts-empty-state">
+                        <h3>No Contacts Yet</h3>
+                        <p>Upload a CSV file in the Automation tab to get started</p>
+                    </div>
+                </div>
             </div>
         </div>
     </main>

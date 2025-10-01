@@ -9,6 +9,7 @@ import { createContactAndMessage } from './automation/createContactAndMessage.js
 import { parseLeadsFromCsvContent, Lead, ContactStatus, processMessageTemplate } from './utils/fileUtils.js';
 import { aiMessageGenerator } from './utils/aiMessageGenerator.js';
 import { getWhatsAppPage, isBrowserInitialized, closeBrowser } from './automation/browserManager.js';
+import { addContact, getAllContacts, getContactStats, deleteContact, isDuplicate, updateContactStatus } from './utils/contactsDb.js';
 
 const app = express();
 const PORT = 4000;
@@ -84,24 +85,52 @@ app.post('/api/upload-csv', upload.single('csvFile'), async (req, res) => {
     }
 
     const csvContent = fs.readFileSync(req.file.path, 'utf8');
-    const contacts = parseLeadsFromCsvContent(csvContent);
+    const allContacts = parseLeadsFromCsvContent(csvContent);
 
-    if (contacts.length === 0) {
+    if (allContacts.length === 0) {
       return res.status(400).json({ error: 'No valid contacts found in CSV' });
+    }
+
+    console.log(`📊 CSV Import: Processing ${allContacts.length} contacts...`);
+
+    // Save contacts to database and filter out duplicates
+    const newContacts: Lead[] = [];
+    const duplicateContacts: Lead[] = [];
+    let addedCount = 0;
+
+    for (const contact of allContacts) {
+      // Try to add contact to database (returns false if duplicate)
+      const wasAdded = addContact(contact, 'pending');
+
+      if (wasAdded) {
+        newContacts.push(contact);
+        addedCount++;
+      } else {
+        duplicateContacts.push(contact);
+      }
     }
 
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
 
+    console.log(`✅ CSV Import Complete: ${addedCount} new, ${duplicateContacts.length} duplicates skipped`);
+
     res.json({
       success: true,
-      message: `CSV processed successfully. Found ${contacts.length} contacts.`,
-      data: { contacts }
+      message: `CSV processed successfully. ${addedCount} new contacts added, ${duplicateContacts.length} duplicates skipped.`,
+      data: {
+        contacts: newContacts, // Only return new contacts for processing
+        stats: {
+          total: allContacts.length,
+          new: addedCount,
+          duplicates: duplicateContacts.length
+        }
+      }
     });
   } catch (error) {
     console.error('CSV upload error:', error);
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to process CSV file' 
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to process CSV file'
     });
   }
 });
@@ -273,8 +302,69 @@ app.post('/api/settings', (req, res) => {
     res.json({ success: true, message: 'Settings updated successfully', settings });
   } catch (error) {
     console.error('Settings error:', error);
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to update settings' 
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to update settings'
+    });
+  }
+});
+
+// Contact Management API Endpoints
+
+// Get all contacts
+app.get('/api/contacts', (req, res) => {
+  try {
+    const contacts = getAllContacts();
+    res.json({
+      success: true,
+      data: contacts
+    });
+  } catch (error) {
+    console.error('Get contacts error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to get contacts'
+    });
+  }
+});
+
+// Get contact statistics
+app.get('/api/contacts/stats', (req, res) => {
+  try {
+    const stats = getContactStats();
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to get statistics'
+    });
+  }
+});
+
+// Delete a contact by phone number
+app.delete('/api/contacts/:phone', (req, res) => {
+  try {
+    const { phone } = req.params;
+
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const deleted = deleteContact(phone);
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Contact deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete contact error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to delete contact'
     });
   }
 });
@@ -312,6 +402,9 @@ async function processBulkContacts(sessionId: string, contacts: Lead[], messageC
           contact
         );
 
+        // Update contact status in database
+        updateContactStatus(contact.phone, 'messaged');
+
         progress.successfulContacts++;
         progress.logs.push(`✅ Success: ${contact.name}`);
 
@@ -319,14 +412,17 @@ async function processBulkContacts(sessionId: string, contacts: Lead[], messageC
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error(`Failed to process ${contact.name}:`, errorMessage);
 
-        // Categorize the error
+        // Categorize the error and update contact status in database
         if (errorMessage.includes('not on WhatsApp')) {
+          updateContactStatus(contact.phone, 'not_on_whatsapp', errorMessage);
           progress.notOnWhatsAppContacts++;
           progress.logs.push(`📵 Not on WhatsApp: ${contact.name}`);
         } else if (errorMessage.includes('invalid phone')) {
+          updateContactStatus(contact.phone, 'invalid_phone', errorMessage);
           progress.skippedContacts++;
           progress.logs.push(`⏭️ Invalid phone: ${contact.name}`);
         } else {
+          updateContactStatus(contact.phone, 'failed', errorMessage);
           progress.failedContacts++;
           progress.logs.push(`❌ Failed: ${contact.name} - ${errorMessage}`);
         }
