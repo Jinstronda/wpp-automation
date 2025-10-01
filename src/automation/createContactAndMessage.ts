@@ -396,7 +396,10 @@ async function createContactAndMessage(
     ];
     for (const selector of paragraphSelectors) {
       nameFilled = await ensureParagraphText(dialogRoot, selector, name);
-      if (nameFilled) break;
+      if (nameFilled) {
+        console.log(`✅ Name filled using paragraph selector: ${selector}`);
+        break;
+      }
     }
   }
 
@@ -413,6 +416,9 @@ async function createContactAndMessage(
       'input[id*="name" i]'
     ];
     nameFilled = await typeIntoWithinRoot(dialogRoot, page, nameSelectors, name);
+    if (nameFilled) {
+      console.log(`✅ Name filled using input selector`);
+    }
   }
 
   // Try contenteditable divs
@@ -423,6 +429,9 @@ async function createContactAndMessage(
       '[contenteditable="true"]'
     ];
     nameFilled = await typeIntoWithinRoot(dialogRoot, page, editableSelectors, name);
+    if (nameFilled) {
+      console.log(`✅ Name filled using contenteditable`);
+    }
   }
 
   // Try getByPlaceholder for name variations
@@ -433,9 +442,9 @@ async function createContactAndMessage(
         const nameField = dialogRoot.getByPlaceholder(placeholder, { exact: false });
         if (await nameField.count()) {
           await nameField.first().click();
-          await nameField.first().fill('');
-          await nameField.first().type(name, { delay: 15 });
+          await nameField.first().fill(name); // Use fill() instead of fill('') + type() to prevent duplication
           nameFilled = true;
+          console.log(`✅ Name filled using placeholder: ${placeholder}`);
           break;
         }
       } catch {}
@@ -449,12 +458,12 @@ async function createContactAndMessage(
       const inputCount = await allInputs.count();
 
       if (inputCount >= 1) {
-        // Try first input as name field
+        // Try first input as name field - use fill() to avoid duplication
         const nameInput = allInputs.nth(0);
         await nameInput.click();
-        await nameInput.fill('');
-        await nameInput.type(name, { delay: 15 });
+        await nameInput.fill(name); // Use fill() instead of type() to prevent duplication
         nameFilled = true;
+        console.log(`✅ Name filled using first input field`);
       }
     } catch {}
   }
@@ -749,16 +758,15 @@ async function createContactAndMessage(
     throw new Error('Could not find search field');
   }
 
-  // Clear and type in search field
+  // Clear and fill search field - use fill() to prevent duplication
   try {
     await searchField.click();
-    await searchField.fill('');
-    await page.waitForTimeout(300);
-    await searchField.type(name, { delay: 15 });
-    await page.waitForTimeout(800); // Wait a bit longer for search results
-    console.log(`Typed "${name}" in search field`);
+    await page.waitForTimeout(200);
+    await searchField.fill(name); // Use fill() instead of fill('') + type() to prevent duplication
+    await page.waitForTimeout(800); // Wait for search results
+    console.log(`Filled search field with "${name}"`);
   } catch (e) {
-    throw new Error(`Failed to type in search field: ${e}`);
+    throw new Error(`Failed to fill search field: ${e}`);
   }
 
   // Now look for the contact in search results
