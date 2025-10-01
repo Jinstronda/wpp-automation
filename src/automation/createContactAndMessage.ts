@@ -772,29 +772,38 @@ async function createContactAndMessage(
     console.log(`⚠️ Exact match not found, trying alternatives...`);
   }
 
-  // Strategy 2: If exact match failed, try any search result (first result)
+  // Strategy 2: If exact match failed, check for "No results found" before trying alternatives
   if (!contactClicked) {
+    // First check if WhatsApp shows "No results found" message
     try {
-      console.log(`🔍 Looking for any search result...`);
+      const noResultsMessage = page.locator('div[class*="_ak72"]').filter({ hasText: /No results found for/ });
+      const hasNoResults = await noResultsMessage.count() > 0;
 
-      // Try different selectors for search results
-      const resultSelectors = [
-        'div[data-testid="cell-frame-container"]',
-        'div[role="listitem"]',
-        'div[class*="x10l6tqk"]',
-        'span[dir="auto"][title]'
-      ];
+      if (hasNoResults) {
+        console.log(`❌ WhatsApp shows "No results found" - contact doesn't exist`);
+        // Skip to strategy 3 (clear and exit)
+      } else {
+        console.log(`🔍 Looking for any search result...`);
 
-      for (const selector of resultSelectors) {
-        const results = page.locator(selector);
-        const count = await results.count();
-        console.log(`   Found ${count} results with selector: ${selector}`);
+        // Try different selectors for search results - with reduced timeout
+        const resultSelectors = [
+          'div[data-testid="cell-frame-container"]', // Specific search result container
+          'div[role="listitem"]',                     // List items in search results
+          'span[dir="auto"][title]'                   // Contact names with titles
+        ];
 
-        if (count > 0) {
-          await results.first().click();
-          console.log(`✅ Clicked first search result`);
-          contactClicked = true;
-          break;
+        for (const selector of resultSelectors) {
+          const results = page.locator(selector);
+          const count = await results.count();
+          console.log(`   Found ${count} results with selector: ${selector}`);
+
+          if (count > 0) {
+            // Use reduced timeout (5s instead of 30s) and force click to bypass intercepting elements
+            await results.first().click({ timeout: 5000, force: true });
+            console.log(`✅ Clicked first search result`);
+            contactClicked = true;
+            break;
+          }
         }
       }
     } catch (e) {

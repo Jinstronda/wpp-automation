@@ -166,7 +166,7 @@ You are talking with a ${lead.industry || 'business'} called "${lead.businessNam
           { role: 'system', content: systemPromptToUse },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 150,
+        max_completion_tokens: 150, // Updated from max_tokens (deprecated) to max_completion_tokens
         temperature: 0.7,
       });
 
