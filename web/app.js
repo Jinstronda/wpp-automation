@@ -310,6 +310,10 @@ class WhatsAppAutomation {
                 }
             }
 
+            // Get contact limit (optional)
+            const contactLimit = formData.get('contactLimit');
+            const parsedLimit = contactLimit ? parseInt(contactLimit, 10) : null;
+
             this.log('Uploading CSV file...', 'info');
             this.updateStatus('Uploading...');
 
@@ -324,8 +328,8 @@ class WhatsAppAutomation {
                 this.showStatus('bulk', `CSV uploaded: ${result.data.contacts.length} contacts found`, 'success');
                 this.log(`✅ CSV uploaded: ${result.data.contacts.length} contacts`, 'success');
 
-                // Start bulk processing with mode and message
-                await this.startBulkProcessing(result.data.contacts, messageContent, this.currentMode);
+                // Start bulk processing with mode, message, and contact limit
+                await this.startBulkProcessing(result.data.contacts, messageContent, this.currentMode, parsedLimit);
             } else {
                 throw new Error(result.error || 'Upload failed');
             }
@@ -342,9 +346,10 @@ class WhatsAppAutomation {
     }
 
     // Start Bulk Processing
-    async startBulkProcessing(contacts, messageContent, mode) {
+    async startBulkProcessing(contacts, messageContent, mode, contactLimit = null) {
         try {
-            this.log(`Starting bulk processing for ${contacts.length} contacts in ${mode} mode...`, 'info');
+            const limitMsg = contactLimit ? ` (limit: ${contactLimit} successful messages)` : '';
+            this.log(`Starting bulk processing for ${contacts.length} contacts in ${mode} mode${limitMsg}...`, 'info');
             this.updateStatus('Processing...');
 
             const response = await fetch('/api/start-bulk', {
@@ -353,7 +358,8 @@ class WhatsAppAutomation {
                 body: JSON.stringify({
                     contacts: contacts,
                     defaultMessage: messageContent,
-                    messageMode: mode // 'template' or 'ai-prompt'
+                    messageMode: mode, // 'template' or 'ai-prompt'
+                    contactLimit: contactLimit // Optional limit on successful messages
                 })
             });
 

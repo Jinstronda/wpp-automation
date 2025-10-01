@@ -42,13 +42,7 @@ async function typeIntoWithinRoot(root: Locator, page: Page, selectors: string[]
       try {
         const target = el.first();
         await target.click();
-        await target.fill('');
-        const isFocused = await page.evaluate((sel) => {
-          const node = document.querySelector(sel) as HTMLElement | null;
-          return !!node && node === document.activeElement;
-        }, selector);
-        if (!isFocused) continue;
-        await target.type(value, { delay: 20 });
+        await target.fill(value); // Use fill() to prevent duplicates - atomic operation
         return true;
       } catch {}
     }
@@ -59,33 +53,27 @@ async function typeIntoWithinRoot(root: Locator, page: Page, selectors: string[]
 async function ensureParagraphText(root: Locator, selector: string, value: string): Promise<boolean> {
   const p = root.locator(selector).first();
   if (!(await p.count())) return false;
-  for (let i = 0; i < 2; i++) {
-    try {
-      await p.click();
-      await p.fill('');
-      await p.type(value, { delay: 0 });
-      const ok = await p.evaluate((node, v) => node.textContent?.trim() === v, value);
-      if (ok) return true;
-    } catch {}
+  try {
+    await p.click();
+    await p.fill(value); // Use fill() instead of type() - atomic, no duplicates
+    const ok = await p.evaluate((node, v) => node.textContent?.trim() === v, value);
+    return ok;
+  } catch {
+    return false;
   }
-  return false;
 }
 
 async function ensureInputValue(root: Locator, page: Page, selector: string, value: string): Promise<boolean> {
   const input = root.locator(selector).first();
   if (!(await input.count())) return false;
-  for (let i = 0; i < 2; i++) {
-    try {
-      await input.click();
-      await input.fill('');
-      const focused = await input.evaluate((n) => n === document.activeElement);
-      if (!focused) continue;
-      await input.type(value, { delay: 0 });
-      const ok = await input.evaluate((n, v) => (n as HTMLInputElement).value.replace(/\D/g, '') === v.replace(/\D/g, ''), value);
-      if (ok) return true;
-    } catch {}
+  try {
+    await input.click();
+    await input.fill(value); // Use fill() - atomic, no duplicates
+    const ok = await input.evaluate((n, v) => (n as HTMLInputElement).value.replace(/\D/g, '') === v.replace(/\D/g, ''), value);
+    return ok;
+  } catch {
+    return false;
   }
-  return false;
 }
 
 async function selectCountryFromDropdown(dialogRoot: Locator, page: Page, country: CountryInfo): Promise<boolean> {
@@ -769,14 +757,85 @@ async function createContactAndMessage(
     throw new Error(`Failed to fill search field: ${e}`);
   }
 
-  // Now look for the contact in search results
+  // Now look for the contact in search results - try multiple strategies
+  let contactClicked = false;
+
+  // Strategy 1: Try exact name match
   try {
+    console.log(`🔍 Trying exact match for: "${name}"`);
     const chatTitle = page.locator(`span[title="${name}"]`);
-    await chatTitle.first().waitFor({ timeout: 3000 });
+    await chatTitle.first().waitFor({ timeout: 2000, state: 'visible' });
     await chatTitle.first().click();
-    console.log(`Found and clicked on contact: ${name}`);
+    console.log(`✅ Found and clicked exact match: ${name}`);
+    contactClicked = true;
   } catch (e) {
-    throw new Error(`Could not find contact "${name}" in search results: ${e}`);
+    console.log(`⚠️ Exact match not found, trying alternatives...`);
+  }
+
+  // Strategy 2: If exact match failed, try any search result (first result)
+  if (!contactClicked) {
+    try {
+      console.log(`🔍 Looking for any search result...`);
+
+      // Try different selectors for search results
+      const resultSelectors = [
+        'div[data-testid="cell-frame-container"]',
+        'div[role="listitem"]',
+        'div[class*="x10l6tqk"]',
+        'span[dir="auto"][title]'
+      ];
+
+      for (const selector of resultSelectors) {
+        const results = page.locator(selector);
+        const count = await results.count();
+        console.log(`   Found ${count} results with selector: ${selector}`);
+
+        if (count > 0) {
+          await results.first().click();
+          console.log(`✅ Clicked first search result`);
+          contactClicked = true;
+          break;
+        }
+      }
+    } catch (e) {
+      console.log(`⚠️ Could not find any search results: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // Strategy 3: If still no results, clear search and go back to main page
+  if (!contactClicked) {
+    console.log(`❌ No search results found for "${name}" - clearing search field`);
+
+    try {
+      // Clear the search field
+      if (searchField) {
+        await searchField.click();
+        await page.waitForTimeout(200);
+        await searchField.fill('');
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(500);
+        console.log(`🔄 Search cleared, returned to main page`);
+      }
+    } catch (clearError) {
+      console.log(`⚠️ Failed to clear search: ${clearError instanceof Error ? clearError.message : String(clearError)}`);
+    }
+
+    throw new Error(`Could not find contact "${name}" in search results after multiple attempts`);
+  }
+
+  // CRITICAL: Clear the search field after clicking contact to prevent typing in wrong field
+  console.log(`🔄 Clearing search field after contact click...`);
+  try {
+    if (searchField) {
+      await searchField.click();
+      await page.waitForTimeout(200);
+      await searchField.fill('');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+      console.log(`✅ Search field cleared`);
+    }
+  } catch (clearError) {
+    console.log(`⚠️ Non-critical: Failed to clear search after click: ${clearError instanceof Error ? clearError.message : String(clearError)}`);
   }
 
   // Wait for the chat to fully load and composer to be ready

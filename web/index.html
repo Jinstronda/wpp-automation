@@ -840,6 +840,12 @@
                     </div>
 
                     <div class="form-group">
+                        <label class="form-label" for="contact-limit">Contact Limit (Optional)</label>
+                        <input type="number" id="contact-limit" name="contactLimit" class="form-input" min="1" placeholder="Leave empty to process all contacts">
+                        <div class="form-help">Only count successfully sent messages towards this limit. Skip contacts that fail or are not on WhatsApp.</div>
+                    </div>
+
+                    <div class="form-group">
                         <label class="form-label" for="message-mode">Message Mode</label>
                         <div class="mode-selector">
                             <button type="button" class="mode-btn active" data-mode="template" id="mode-template-btn">
