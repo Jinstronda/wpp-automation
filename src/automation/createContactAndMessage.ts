@@ -823,20 +823,12 @@ async function createContactAndMessage(
     throw new Error(`Could not find contact "${name}" in search results after multiple attempts`);
   }
 
-  // CRITICAL: Clear the search field after clicking contact to prevent typing in wrong field
-  console.log(`🔄 Clearing search field after contact click...`);
-  try {
-    if (searchField) {
-      await searchField.click();
-      await page.waitForTimeout(200);
-      await searchField.fill('');
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(300);
-      console.log(`✅ Search field cleared`);
-    }
-  } catch (clearError) {
-    console.log(`⚠️ Non-critical: Failed to clear search after click: ${clearError instanceof Error ? clearError.message : String(clearError)}`);
-  }
+  // IMPORTANT: Do NOT clear the search field after clicking contact!
+  // Testing with Playwright MCP revealed that:
+  // 1. The search field remaining visible is NORMAL WhatsApp behavior
+  // 2. Clicking "Cancel search" or clearing search EXITS the chat entirely
+  // 3. The message composer is a separate element that coexists with the search field
+  // 4. Clearing search would return us to the main chat list, losing the conversation
 
   // Wait for the chat to fully load and composer to be ready
   console.log(`⏳ Waiting for chat composer to be ready...`);

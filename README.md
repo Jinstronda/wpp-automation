@@ -73,6 +73,7 @@ The server will start at **http://localhost:4000**
 - **Intelligent wait times** - 2-second chat load delay + 500ms pre-send wait for stability
 - **Comprehensive logging** - Real-time feedback showing exactly which selector worked and why
 - **99.9% success rate** - Messages now reliably send even in edge cases
+- **Search field behavior fix** - Correctly handles WhatsApp's persistent search field without exiting chats
 
 ### **📱 Intelligent Phone Number Handling**
 - **Country code extraction** - Automatically removes country codes (e.g., 351) from phone numbers
@@ -80,17 +81,25 @@ The server will start at **http://localhost:4000**
 - **No double prefixes** - Prevents `+351 351912345678` errors
 - **Portuguese validation** - Distinguishes mobile (9XXXXXXXX) from landline (21-29 area codes)
 
+### **🎯 Robust Contact Search System**
+- **3-strategy fallback** - Exact match → First result → Clear and exit
+- **Handles special characters** - Works with business names containing • and other symbols
+- **Graceful degradation** - If contact not found, safely returns to main chat list
+- **No infinite loops** - Clear exit strategy when contacts don't exist
+
 ### **🔍 Comprehensive Diagnostic System**
 - **Step-by-step logging** - Every action logged with 🔍 [DEBUG] markers for easy troubleshooting
 - **Global error handlers** - Uncaught exceptions and promise rejections captured with full stack traces
 - **Real-time progress tracking** - See exactly what's happening at each automation step
 - **Detailed error reports** - When something fails, you know exactly where and why
+- **Playwright MCP tested** - All workflows manually verified through browser automation testing
 
 ### **⚡ Performance Optimizations**
-- **Atomic fill operations** - Prevents duplicate name/text entry (was typing 10x sometimes)
+- **Atomic fill operations** - Prevents duplicate name/text entry (fixed 5x typing bug)
 - **Optimized selector matching** - Fastest selectors tried first
 - **Efficient error recovery** - Quick fallback to alternative methods if one fails
 - **Pre-initialized browser** - Browser starts once before bulk processing begins
+- **No unnecessary clearing** - Respects WhatsApp's native UI behavior (search field persists)
 
 ---
 
