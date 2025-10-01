@@ -779,6 +779,10 @@ async function createContactAndMessage(
     throw new Error(`Could not find contact "${name}" in search results: ${e}`);
   }
 
+  // Wait for the chat to fully load and composer to be ready
+  console.log(`⏳ Waiting for chat composer to be ready...`);
+  await page.waitForTimeout(2000); // Give the chat time to fully load
+
   // Generate the final message NOW that contact is successfully created and we're in their chat
   console.log(`📝 Generating message for ${name}...`);
   let finalMessage: string;
@@ -810,35 +814,56 @@ async function createContactAndMessage(
   }
 
   // Now wait for chat composer and send message
+  console.log(`🔍 Looking for message composer...`);
   const composerSelectors = [
     'div[contenteditable="true"][data-tab="10"]',
     'div[contenteditable="true"][data-tab="6"]',
     '[data-testid="conversation-compose-box-input"]',
     'footer div[contenteditable="true"][role="textbox"]',
-    'div[contenteditable="true"][data-tab]'
+    'div[contenteditable="true"][data-tab]',
+    'footer div[contenteditable="true"]'
   ];
 
   let sent = false;
   for (const selector of composerSelectors) {
+    console.log(`🔍 Trying composer selector: ${selector}`);
     const c = page.locator(selector);
-    if (await c.count()) {
+    const count = await c.count();
+    console.log(`   Found ${count} elements`);
+
+    if (count > 0) {
       try {
         const target = c.first();
-        await target.waitFor({ timeout: 5000 });
+        console.log(`   Waiting for element to be visible...`);
+        await target.waitFor({ timeout: 5000, state: 'visible' });
+
+        console.log(`   Clicking composer...`);
         await target.click();
-        const composerFocused = await page.evaluate((sel) => {
-          const node = document.querySelector(sel) as HTMLElement | null;
-          return !!node && node.getAttribute('contenteditable') === 'true' && node === document.activeElement;
-        }, selector);
-        if (!composerFocused) continue;
+        await page.waitForTimeout(300); // Wait for focus
+
+        // Click again to ensure focus
+        await target.click();
+        await page.waitForTimeout(300);
+
+        console.log(`   Typing message: "${finalMessage.substring(0, 50)}..."`);
         await target.type(finalMessage, { delay: 30 });
+
+        console.log(`   Pressing Enter to send...`);
+        await page.waitForTimeout(500); // Wait before pressing Enter
         await page.keyboard.press('Enter');
+
         sent = true;
+        console.log(`✅ Message sent successfully using selector: ${selector}`);
         break;
-      } catch {}
+      } catch (error) {
+        console.log(`   ⚠️ Failed with this selector: ${error instanceof Error ? error.message : String(error)}`);
+        continue;
+      }
     }
   }
+
   if (!sent) {
+    console.error(`❌ Failed to send message - tried ${composerSelectors.length} selectors`);
     throw new Error('Could not locate message composer after creating contact.');
   }
 
