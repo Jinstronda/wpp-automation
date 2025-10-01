@@ -5,59 +5,86 @@ let sharedContext: BrowserContext | null = null;
 let isInitialized = false;
 
 export async function getWhatsAppPage(): Promise<Page> {
-  if (!sharedContext || !isInitialized) {
-    await initializeBrowser();
-  }
+  try {
+    console.log('🔍 [DEBUG] getWhatsAppPage() called');
+    console.log(`🔍 [DEBUG] sharedContext: ${sharedContext ? 'exists' : 'null'}, isInitialized: ${isInitialized}`);
 
-  if (!sharedContext) {
-    throw new Error('Failed to initialize browser context');
-  }
-
-  // Get the first page or create a new one
-  const pages = sharedContext.pages();
-  let page: Page;
-
-  if (pages.length > 0) {
-    page = pages[0];
-  } else {
-    page = await sharedContext.newPage();
-  }
-
-  // Navigate to WhatsApp Web if not already there
-  const currentUrl = page.url();
-  if (!currentUrl.includes('web.whatsapp.com')) {
-    console.log('🌐 Navigating to WhatsApp Web...');
-    await page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle', timeout: 60000 });
-
-    // Wait for either QR code or chat list
-    console.log('⏳ Waiting for WhatsApp Web to load...');
-    await page.waitForTimeout(3000); // Give UI time to render
-
-    try {
-      await Promise.race([
-        page.waitForSelector('canvas[aria-label="Scan me!"]', { timeout: 30000, state: 'visible' }),
-        page.waitForSelector('div[aria-label="Chat list"]', { timeout: 30000, state: 'visible' })
-      ]);
-      console.log('✅ WhatsApp Web loaded successfully');
-    } catch (error) {
-      console.log('⚠️ WhatsApp Web UI not detected, but continuing...');
+    if (!sharedContext || !isInitialized) {
+      console.log('🔍 [DEBUG] Need to initialize browser...');
+      await initializeBrowser();
+      console.log('🔍 [DEBUG] initializeBrowser() completed');
     }
+
+    if (!sharedContext) {
+      console.error('❌ [ERROR] sharedContext is still null after initialization');
+      throw new Error('Failed to initialize browser context');
+    }
+
+    console.log('🔍 [DEBUG] Getting pages from context...');
+    const pages = sharedContext.pages();
+    console.log(`🔍 [DEBUG] Found ${pages.length} existing pages`);
+
+    let page: Page;
+
+    if (pages.length > 0) {
+      page = pages[0];
+      console.log('🔍 [DEBUG] Using existing page');
+    } else {
+      console.log('🔍 [DEBUG] Creating new page...');
+      page = await sharedContext.newPage();
+      console.log('🔍 [DEBUG] New page created');
+    }
+
+    // Navigate to WhatsApp Web if not already there
+    const currentUrl = page.url();
+    console.log(`🔍 [DEBUG] Current URL: ${currentUrl}`);
+
+    if (!currentUrl.includes('web.whatsapp.com')) {
+      console.log('🌐 Navigating to WhatsApp Web...');
+      await page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle', timeout: 60000 });
+
+      // Wait for either QR code or chat list
+      console.log('⏳ Waiting for WhatsApp Web to load...');
+      await page.waitForTimeout(3000); // Give UI time to render
+
+      try {
+        await Promise.race([
+          page.waitForSelector('canvas[aria-label="Scan me!"]', { timeout: 30000, state: 'visible' }),
+          page.waitForSelector('div[aria-label="Chat list"]', { timeout: 30000, state: 'visible' })
+        ]);
+        console.log('✅ WhatsApp Web loaded successfully');
+      } catch (error) {
+        console.log('⚠️ WhatsApp Web UI not detected, but continuing...');
+      }
+    }
+
+    // Bring the page to the foreground so user can see the automation
+    console.log('🔍 [DEBUG] Bringing page to front...');
+    await page.bringToFront();
+    console.log('🔍 [DEBUG] Page brought to front');
+
+    console.log('✅ [DEBUG] getWhatsAppPage() completed successfully');
+    return page;
+  } catch (error) {
+    console.error('❌ [ERROR] getWhatsAppPage() failed:', error);
+    console.error('❌ [ERROR] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    throw error;
   }
-
-  // Bring the page to the foreground so user can see the automation
-  await page.bringToFront();
-
-  return page;
 }
 
 async function initializeBrowser(): Promise<void> {
+  console.log('🔍 [DEBUG] initializeBrowser() called');
+  console.log(`🔍 [DEBUG] isInitialized: ${isInitialized}`);
+
   if (isInitialized) {
     console.log('ℹ️ Browser already initialized, skipping...');
     return;
   }
 
   try {
+    console.log('🔍 [DEBUG] Getting user data directory...');
     const userDataDir = path.join(process.cwd(), 'state', 'chromium-profile');
+    console.log(`🔍 [DEBUG] process.cwd(): ${process.cwd()}`);
 
     console.log('🚀 Launching browser...');
     console.log(`📁 User data directory: ${userDataDir}`);
@@ -65,6 +92,7 @@ async function initializeBrowser(): Promise<void> {
     // MINIMAL configuration - just what's needed for persistent login
     // Window is always visible and stays in foreground
     try {
+      console.log('🔍 [DEBUG] Calling chromium.launchPersistentContext...');
       sharedContext = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
         viewport: { width: 1400, height: 900 },
@@ -76,9 +104,11 @@ async function initializeBrowser(): Promise<void> {
         ]
       });
       console.log('✅ Browser context created successfully');
+      console.log(`🔍 [DEBUG] sharedContext type: ${typeof sharedContext}`);
     } catch (launchError) {
       console.error('❌ CRITICAL: Failed to launch browser context');
-      console.error('Error details:', launchError);
+      console.error('❌ [ERROR] Error details:', launchError);
+      console.error('❌ [ERROR] Error stack:', launchError instanceof Error ? launchError.stack : 'No stack');
       throw new Error(`Failed to launch browser: ${launchError instanceof Error ? launchError.message : String(launchError)}`);
     }
 

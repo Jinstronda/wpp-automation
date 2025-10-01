@@ -74,6 +74,25 @@ export function isDuplicate(phone: string): boolean {
 }
 
 /**
+ * Check if a contact has already been messaged successfully
+ * This is different from isDuplicate - only returns true if status is 'messaged'
+ * Used to prevent messaging the same contact twice
+ */
+export function isAlreadyMessaged(phone: string): boolean {
+  try {
+    const contacts = loadContacts();
+    const normalizedPhone = normalizePhoneNumber(phone);
+
+    return contacts.some(
+      contact => contact.normalizedPhone === normalizedPhone && contact.status === 'messaged'
+    );
+  } catch (error) {
+    console.error('❌ Failed to check if already messaged:', error);
+    return false;
+  }
+}
+
+/**
  * Add a new contact to the database
  * Returns false if contact already exists (duplicate)
  */

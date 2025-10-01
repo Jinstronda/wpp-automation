@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "npm run build && node dist/server.js",
-    "dev": "npm run build && node dist/server.js",
-    "ui": "npm run build && node dist/server.js"
+    "build": "tsc -p tsconfig.json && node dist/server.js",
+    "start": "tsc -p tsconfig.json && node dist/server.js",
+    "dev": "tsc -p tsconfig.json && node dist/server.js",
+    "ui": "tsc -p tsconfig.json && node dist/server.js"
   },
   "description": "WhatsApp Bulk Automation with AI - João Panizzutti Methodology",
   "main": "dist/server.js",
