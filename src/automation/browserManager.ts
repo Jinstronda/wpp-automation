@@ -44,6 +44,9 @@ export async function getWhatsAppPage(): Promise<Page> {
     }
   }
 
+  // Bring the page to the foreground so user can see the automation
+  await page.bringToFront();
+
   return page;
 }
 
@@ -56,12 +59,15 @@ async function initializeBrowser(): Promise<void> {
     console.log('🚀 Launching browser...');
 
     // MINIMAL configuration - just what's needed for persistent login
+    // Window is always visible and stays in foreground
     sharedContext = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       viewport: { width: 1400, height: 900 },
       args: [
         '--disable-blink-features=AutomationControlled',
-        '--start-maximized'
+        '--start-maximized',
+        '--window-position=0,0', // Position at top-left
+        '--disable-backgrounding-occluded-windows' // Prevent window from being hidden
       ]
     });
 
