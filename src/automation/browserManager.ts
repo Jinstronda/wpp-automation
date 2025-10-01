@@ -51,39 +51,63 @@ export async function getWhatsAppPage(): Promise<Page> {
 }
 
 async function initializeBrowser(): Promise<void> {
-  if (isInitialized) return;
+  if (isInitialized) {
+    console.log('ℹ️ Browser already initialized, skipping...');
+    return;
+  }
 
   try {
     const userDataDir = path.join(process.cwd(), 'state', 'chromium-profile');
 
     console.log('🚀 Launching browser...');
+    console.log(`📁 User data directory: ${userDataDir}`);
 
     // MINIMAL configuration - just what's needed for persistent login
     // Window is always visible and stays in foreground
-    sharedContext = await chromium.launchPersistentContext(userDataDir, {
-      headless: false,
-      viewport: { width: 1400, height: 900 },
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--start-maximized',
-        '--window-position=0,0', // Position at top-left
-        '--disable-backgrounding-occluded-windows' // Prevent window from being hidden
-      ]
-    });
+    try {
+      sharedContext = await chromium.launchPersistentContext(userDataDir, {
+        headless: false,
+        viewport: { width: 1400, height: 900 },
+        args: [
+          '--disable-blink-features=AutomationControlled',
+          '--start-maximized',
+          '--window-position=0,0', // Position at top-left
+          '--disable-backgrounding-occluded-windows' // Prevent window from being hidden
+        ]
+      });
+      console.log('✅ Browser context created successfully');
+    } catch (launchError) {
+      console.error('❌ CRITICAL: Failed to launch browser context');
+      console.error('Error details:', launchError);
+      throw new Error(`Failed to launch browser: ${launchError instanceof Error ? launchError.message : String(launchError)}`);
+    }
 
     // Minimal stealth - only hide webdriver flag
-    await sharedContext.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', {
-        get: () => undefined,
+    try {
+      await sharedContext.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => undefined,
+        });
       });
-    });
+      console.log('✅ Stealth script added');
+    } catch (scriptError) {
+      console.warn('⚠️ Failed to add stealth script (non-critical):', scriptError);
+      // Don't throw - this is non-critical
+    }
 
     // Navigate to WhatsApp Web
     const pages = sharedContext.pages();
     const page = pages.length > 0 ? pages[0] : await sharedContext.newPage();
+    console.log(`✅ Got page (${pages.length > 0 ? 'existing' : 'new'})`);
 
     console.log('🌐 Loading WhatsApp Web...');
-    await page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle', timeout: 60000 });
+    try {
+      await page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle', timeout: 60000 });
+      console.log('✅ WhatsApp Web loaded');
+    } catch (navError) {
+      console.error('❌ Failed to navigate to WhatsApp Web:', navError);
+      throw new Error(`Failed to load WhatsApp Web: ${navError instanceof Error ? navError.message : String(navError)}`);
+    }
 
     // Give the page time to render
     console.log('⏳ Waiting for WhatsApp Web UI...');
@@ -98,14 +122,28 @@ async function initializeBrowser(): Promise<void> {
     } else if (chatList > 0) {
       console.log('✅ Already logged in - Chat list detected');
     } else {
-      console.log('⚠️ WhatsApp Web loaded but UI state unclear');
+      console.log('⚠️ WhatsApp Web loaded but UI state unclear (may need manual check)');
     }
 
     isInitialized = true;
     console.log('✅ Browser initialized successfully');
   } catch (error) {
-    console.error('❌ Failed to initialize browser:', error);
-    throw error;
+    console.error('❌ FATAL: Failed to initialize browser');
+    console.error('Full error:', error);
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace available');
+
+    // Clean up partial initialization
+    if (sharedContext) {
+      try {
+        await sharedContext.close();
+      } catch (closeError) {
+        console.error('Failed to close context during cleanup:', closeError);
+      }
+      sharedContext = null;
+    }
+    isInitialized = false;
+
+    throw new Error(`Browser initialization failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

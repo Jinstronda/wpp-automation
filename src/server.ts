@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { createContactAndMessage } from './automation/createContactAndMessage.js';
 import { parseLeadsFromCsvContent, Lead, ContactStatus, processMessageTemplate } from './utils/fileUtils.js';
 import { aiMessageGenerator } from './utils/aiMessageGenerator.js';
+import { getWhatsAppPage, isBrowserInitialized, closeBrowser } from './automation/browserManager.js';
 
 const app = express();
 const PORT = 4000;
@@ -105,6 +106,40 @@ app.post('/api/upload-csv', upload.single('csvFile'), async (req, res) => {
   }
 });
 
+// Initialize browser before bulk processing
+app.post('/api/init-browser', async (req, res) => {
+  try {
+    console.log('🔄 Explicit browser initialization requested...');
+
+    // Check if already initialized
+    if (isBrowserInitialized()) {
+      console.log('✅ Browser already initialized');
+      return res.json({
+        success: true,
+        message: 'Browser already initialized',
+        alreadyInitialized: true
+      });
+    }
+
+    // Initialize browser by getting a page (this triggers initialization)
+    console.log('🚀 Initializing browser...');
+    await getWhatsAppPage();
+
+    console.log('✅ Browser initialized successfully');
+    res.json({
+      success: true,
+      message: 'Browser initialized successfully',
+      alreadyInitialized: false
+    });
+  } catch (error) {
+    console.error('❌ Browser initialization failed:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to initialize browser',
+      details: error instanceof Error ? error.stack : String(error)
+    });
+  }
+});
+
 app.post('/api/start-bulk', async (req, res) => {
   try {
     const { contacts, defaultMessage, messageMode = 'template' } = req.body;
@@ -119,6 +154,19 @@ app.post('/api/start-bulk', async (req, res) => {
 
     if (!defaultMessage) {
       return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    // PRE-INITIALIZE BROWSER before starting bulk processing
+    console.log('🔄 Pre-initializing browser for bulk processing...');
+    try {
+      await getWhatsAppPage();
+      console.log('✅ Browser pre-initialized successfully');
+    } catch (browserError) {
+      console.error('❌ Failed to initialize browser:', browserError);
+      return res.status(500).json({
+        error: 'Failed to initialize browser. Please make sure WhatsApp Web can open.',
+        details: browserError instanceof Error ? browserError.message : String(browserError)
+      });
     }
 
     const sessionId = `bulk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
