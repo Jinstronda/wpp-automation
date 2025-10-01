@@ -680,7 +680,9 @@ async function createContactAndMessage(
   }
 
   // 4) Save contact (click the green Save button) inside dialog
-  const saved = await clickAnyWithinRoot(dialogRoot, [
+  console.log(`🔍 Looking for Save button...`);
+
+  const saveSelectors = [
     'div[role="button"][aria-label="Save contact"]',
     'button[aria-label="Save contact"]',
     'div[role="button"]:has(span[data-icon="checkmark"])',
@@ -688,18 +690,59 @@ async function createContactAndMessage(
     'button:has(span[data-icon="checkmark"])',
     'button:has(svg[title*="check" i])',
     'button:has-text("Save")',
-    'div[role="button"]:has-text("Save")'
-  ]);
+    'div[role="button"]:has-text("Save")',
+    'div[role="button"]:has-text("Guardar")', // Portuguese
+    'button:has-text("Guardar")' // Portuguese
+  ];
+
+  let saved = false;
+  for (const selector of saveSelectors) {
+    const el = dialogRoot.locator(selector);
+    const count = await el.count();
+    console.log(`   Trying selector "${selector}": found ${count} elements`);
+
+    if (count > 0) {
+      try {
+        await el.first().click({ timeout: 3000 });
+        console.log(`✅ Save button clicked successfully with selector: ${selector}`);
+        saved = true;
+        break;
+      } catch (e) {
+        console.log(`   ⚠️ Failed to click with ${selector}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  }
+
   if (!saved) {
-    console.warn('Save button not found via selectors; trying fallback green button query.');
+    console.warn('⚠️ Save button not found via selectors; trying fallback green button query.');
     try {
-      await page.evaluate(() => {
-        const btn = Array.from(document.querySelectorAll('button')).find(
-          (b) => getComputedStyle(b).backgroundColor.includes('rgb(37,') || getComputedStyle(b).backgroundColor.includes('rgb(18,')
+      const clicked = await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button, div[role="button"]'));
+        const btn = buttons.find(
+          (b) => {
+            const bg = getComputedStyle(b as HTMLElement).backgroundColor;
+            return bg.includes('rgb(37,') || bg.includes('rgb(18,') || bg.includes('rgb(0, 168,') || bg.includes('rgb(0,168,');
+          }
         ) as HTMLButtonElement | undefined;
-        if (btn) btn.click();
+        if (btn) {
+          btn.click();
+          return true;
+        }
+        return false;
       });
-    } catch {}
+      if (clicked) {
+        console.log(`✅ Save button clicked via green background fallback`);
+        saved = true;
+      } else {
+        console.log(`❌ No green button found in fallback`);
+      }
+    } catch (e) {
+      console.log(`❌ Fallback green button query failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (!saved) {
+    console.error(`❌ Failed to click Save button - contact may not be saved!`);
   }
 
   // Attempt to close the dialog if still open
@@ -772,38 +815,30 @@ async function createContactAndMessage(
     console.log(`⚠️ Exact match not found, trying alternatives...`);
   }
 
-  // Strategy 2: If exact match failed, check for "No results found" before trying alternatives
+  // Strategy 2: If exact match failed, try any search result (first result)
   if (!contactClicked) {
-    // First check if WhatsApp shows "No results found" message
     try {
-      const noResultsMessage = page.locator('div[class*="_ak72"]').filter({ hasText: /No results found for/ });
-      const hasNoResults = await noResultsMessage.count() > 0;
+      console.log(`🔍 Looking for any search result...`);
 
-      if (hasNoResults) {
-        console.log(`❌ WhatsApp shows "No results found" - contact doesn't exist`);
-        // Skip to strategy 3 (clear and exit)
-      } else {
-        console.log(`🔍 Looking for any search result...`);
+      // Try different selectors for search results
+      const resultSelectors = [
+        'div[data-testid="cell-frame-container"]',
+        'div[role="listitem"]',
+        'div[class*="x10l6tqk"]',
+        'span[dir="auto"][title]'
+      ];
 
-        // Try different selectors for search results - with reduced timeout
-        const resultSelectors = [
-          'div[data-testid="cell-frame-container"]', // Specific search result container
-          'div[role="listitem"]',                     // List items in search results
-          'span[dir="auto"][title]'                   // Contact names with titles
-        ];
+      for (const selector of resultSelectors) {
+        const results = page.locator(selector);
+        const count = await results.count();
+        console.log(`   Found ${count} results with selector: ${selector}`);
 
-        for (const selector of resultSelectors) {
-          const results = page.locator(selector);
-          const count = await results.count();
-          console.log(`   Found ${count} results with selector: ${selector}`);
-
-          if (count > 0) {
-            // Use reduced timeout (5s instead of 30s) and force click to bypass intercepting elements
-            await results.first().click({ timeout: 5000, force: true });
-            console.log(`✅ Clicked first search result`);
-            contactClicked = true;
-            break;
-          }
+        if (count > 0) {
+          // Reduced timeout from 30s to 8s to fail faster if contact doesn't exist
+          await results.first().click({ timeout: 8000 });
+          console.log(`✅ Clicked first search result`);
+          contactClicked = true;
+          break;
         }
       }
     } catch (e) {
