@@ -74,6 +74,7 @@ The server will start at **http://localhost:4000**
 - **Comprehensive logging** - Real-time feedback showing exactly which selector worked and why
 - **99.9% success rate** - Messages now reliably send even in edge cases
 - **Search field behavior fix** - Correctly handles WhatsApp's persistent search field without exiting chats
+- **Playwright MCP verified** - Manual testing confirmed correct UI behavior and selector accuracy
 
 ### **📱 Intelligent Phone Number Handling**
 - **Country code extraction** - Automatically removes country codes (e.g., 351) from phone numbers
@@ -81,14 +82,18 @@ The server will start at **http://localhost:4000**
 - **No double prefixes** - Prevents `+351 351912345678` errors
 - **Portuguese validation** - Distinguishes mobile (9XXXXXXXX) from landline (21-29 area codes)
 
-### **🎯 Robust Contact Search System**
+### **🎯 Robust Contact Search & Save System**
 - **3-strategy fallback** - Exact match → First result → Clear and exit
+- **Fast timeout recovery** - Reduced from 30s to 8s when contact doesn't exist (73% faster)
 - **Handles special characters** - Works with business names containing • and other symbols
-- **Graceful degradation** - If contact not found, safely returns to main chat list
-- **No infinite loops** - Clear exit strategy when contacts don't exist
+- **Enhanced save button detection** - 10+ selectors including Portuguese "Guardar" button
+- **Detailed save logging** - Shows which selector found button and if click succeeded
+- **Green background fallback** - Finds save button by color when selectors fail
+- **Graceful degradation** - Clear feedback when contact cannot be found or saved
 
 ### **🔍 Comprehensive Diagnostic System**
 - **Step-by-step logging** - Every action logged with 🔍 [DEBUG] markers for easy troubleshooting
+- **Save button diagnostics** - Shows selector attempts, element counts, and click results
 - **Global error handlers** - Uncaught exceptions and promise rejections captured with full stack traces
 - **Real-time progress tracking** - See exactly what's happening at each automation step
 - **Detailed error reports** - When something fails, you know exactly where and why
@@ -96,10 +101,16 @@ The server will start at **http://localhost:4000**
 
 ### **⚡ Performance Optimizations**
 - **Atomic fill operations** - Prevents duplicate name/text entry (fixed 5x typing bug)
+- **Optimized timeouts** - Reduced "no results found" wait from 30s to 8s (22s saved per missing contact)
 - **Optimized selector matching** - Fastest selectors tried first
 - **Efficient error recovery** - Quick fallback to alternative methods if one fails
 - **Pre-initialized browser** - Browser starts once before bulk processing begins
 - **No unnecessary clearing** - Respects WhatsApp's native UI behavior (search field persists)
+
+### **🤖 AI Integration Improvements**
+- **OpenAI API compatibility** - Fixed deprecated `max_tokens` parameter (now uses `max_completion_tokens`)
+- **GPT-4o-mini support** - Compatible with latest OpenAI models
+- **Error-free generation** - No more 400 BadRequest errors during message generation
 
 ---
 
